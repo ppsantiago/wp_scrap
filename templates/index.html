@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>{{ app_name }}</h1>
+      <p>Bienvenido a tu app con FastAPI + Jinja2.</p>
+      <div class="card">
+        <h2>Punto de inicio</h2>
+        <ul>
+          <li>Ruta de salud: <code>/health</code></li>
+          <li>Archivos estáticos: <code>/static/</code></li>
+          <li>Plantillas: carpeta <code>templates/</code></li>
+          <li>Plantillas: lista <code>list/</code></li>
+        </ul>
+      </div>
+    </main>
+  </body>
+</html>
