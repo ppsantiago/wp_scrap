@@ -109,8 +109,41 @@ window.App.initDomainForm = function () {
       </table>`;
   }
 
+  // --- Técnicas & Seguridad ---
+  const tech = response.tech || {};
+  const req = tech.requests || {};
+  const byType = req.by_type || {};
+  const timing = tech.timing || {};
+  const security = response.security || {};
+  const secH = (security.headers || {});
+
+  const byTypeRows = Object.entries(byType).map(([k,v]) =>
+    `<tr><td>${esc(k)}</td><td>${esc(v.count)}</td><td>${esc(v.bytes)}</td></tr>` 
+  ).join("");
+
+  const techHtml = `
+    <h4>Técnicas</h4>
+    <ul>
+      <li><strong>Requests:</strong> ${esc(req.count || 0)} (bytes totales: ${esc(req.total_bytes || 0)})</li>
+      <li><strong>1ros vs 3ros:</strong> ${esc(req.first_party_bytes || 0)} vs ${esc(req.third_party_bytes || 0)} bytes</li>
+      <li><strong>Timing (ms aprox):</strong> TTFB=${esc(timing.ttfb)}, DCL=${esc(timing.dcl)}, Load=${esc(timing.load)}</li>
+    </ul>
+    <div style="overflow:auto">
+      <table class="table table-sm">
+        <thead><tr><th>Tipo</th><th>#</th><th>Bytes</th></tr></thead>
+        <tbody>${byTypeRows || ""}</tbody>
+      </table>
+    </div>
+    <h4>Security headers</h4>
+    <ul>
+      <li><strong>HSTS:</strong> ${esc(secH.hsts)}</li>
+      <li><strong>CSP:</strong> ${esc(secH.csp)}</li>
+      <li><strong>X-Frame-Options:</strong> ${esc(secH.xfo)}</li>
+      <li><strong>X-Content-Type-Options:</strong> ${esc(secH.xcto)}</li>
+    </ul>`;
+
   // Render final (una sola vez, sin sobrescribir lo ya agregado)
-  $result.html(seoHtml + siteHtml + pagesHtml);
+  $result.html(seoHtml + techHtml + siteHtml + pagesHtml);
 } else {
   const msg = response && response.error ? response.error : "Error desconocido";
   $result.html(`<p>Error: ${msg}</p>` );
