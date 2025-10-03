@@ -20,6 +20,92 @@ def _norm(href:str, base:str)->str|None:
 def _is_asset(u:str)->bool:
     return re.search(r"\.(pdf|jpg|jpeg|png|gif|webp|svg|zip|rar|7z|docx?|xlsx?|pptx?)($|\?)", u, re.I) is not None
 
+# --- SEO básico para la página actual (compatible con tu UI) ---
+async def get_seo_stats(page) -> dict:
+    # Campos base - usando evaluate para evitar timeouts en elementos faltantes
+    seo_data = await page.evaluate("""
+        () => {
+            const getMeta = (name) => {
+                const el = document.querySelector(`meta[name="${name}"]`);
+                return el ? el.getAttribute('content') : null;
+            };
+            const getLink = (rel) => {
+                const el = document.querySelector(`link[rel="${rel}"]`);
+                return el ? el.getAttribute('href') : null;
+            };
+
+            return {
+                title: document.title || "",
+                metaDescription: getMeta('description'),
+                robots: getMeta('robots'),
+                canonical: getLink('canonical'),
+                h1Count: document.querySelectorAll('h1').length,
+                wordCount: document.body ? document.body.innerText.trim().split(/\s+/).filter(Boolean).length : 0,
+                links: {
+                    total: 0,
+                    internal: 0,
+                    external: 0,
+                    nofollow: 0
+                },
+                images: {
+                    total: 0,
+                    withoutAlt: 0
+                }
+            };
+        }
+    """)
+
+    # Ahora procesar links e imágenes con datos ya extraídos
+    page_url = page.url
+    from urllib.parse import urlparse, urljoin
+    cur_host = urlparse(page_url).netloc.lower()
+
+    # Links
+    hrefs = await page.locator('a[href]').evaluate_all("els => els.map(e => ({href: e.getAttribute('href'), rel: (e.getAttribute('rel')||'')}))")
+    total_links = 0
+    internal = 0
+    external = 0
+    nofollow = 0
+    for a in hrefs:
+        href = (a.get("href") or "").strip()
+        if not href or href.startswith(("javascript:", "#")):
+            continue
+        total_links += 1
+        # nofollow
+        if "nofollow" in (a.get("rel") or "").lower():
+            nofollow += 1
+        # absolutizar y clasificar
+        abs_url = urljoin(page_url, href)
+        host = urlparse(abs_url).netloc.lower()
+        if host == cur_host or host == "":
+            internal += 1
+        else:
+            external += 1
+
+    # Imágenes
+    imgs = await page.locator('img').evaluate_all("els => els.map(e => ({alt: e.getAttribute('alt')}))")
+    images_total = len(imgs)
+    images_without_alt = sum(1 for i in imgs if not (i.get('alt') or '').strip())
+
+    return {
+        "title": seo_data.get("title", ""),
+        "metaDescription": seo_data.get("metaDescription") or "",
+        "robots": seo_data.get("robots") or "",
+        "canonical": seo_data.get("canonical") or "",
+        "h1Count": seo_data.get("h1Count", 0),
+        "wordCount": seo_data.get("wordCount", 0),
+        "links": {
+            "total": total_links,
+            "internal": internal,
+            "external": external,
+            "nofollow": nofollow
+        },
+        "images": {
+            "total": images_total,
+            "withoutAlt": images_without_alt
+        }
+    }
+
 async def scrap_domain(domain: str, max_pages:int=60, timeout:int=10000) -> dict:
     if not domain.startswith("http"):
         domain = f"http://{domain}"
