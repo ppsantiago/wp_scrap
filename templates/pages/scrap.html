@@ -1,0 +1,38 @@
+{% extends 'base.html' %} {% block title %}{{ title }}{% endblock %} {% block
+content %}
+<h1>WP Scrap tool</h1>
+<p>Scrap domain</p>
+<div class="" id="domainResult"></div>
+<div class="card">
+  <h2>Scraper</h2>
+  <div style="margin-top: 20px">
+    <button id="openModalBtn" class="btn-primary">Scrap domain</button>
+  </div>
+</div>
+
+<!-- Modal elements -->
+<!-- <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true"></div> -->
+<div id="domainFormModal" class="modal-backdrop" aria-hidden="true"></div>
+<div
+  id="modal-domainForm"
+  class="modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modalTitle"
+>
+  <div class="modal-header">
+    <h3 id="modalTitle">WP Scrap tool - Scrap domain</h3>
+    <button class="icon-button" data-close-modal aria-label="Cerrar">✕</button>
+  </div>
+  <form id="domainForm" class="modal-body">
+    <label>
+      <span>Domain</span>
+      <input id="domainInput" type="text" name="nombre" placeholder="domain.com" required />
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-close-modal>Cancelar</button>
+      <button type="submit" class="btn-primary">Enviar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

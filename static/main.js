@@ -1,7 +1,7 @@
-// Basic modal logic using jQuery
+// Basic modal domain scrap form
 $(function () {
-  const $backdrop = $("#modal-backdrop");
-  const $modal = $("#modal");
+  const $backdrop = $("#domainFormModal");
+  const $modal = $("#modal-domainForm");
   const open = () => {
     $backdrop.addClass("is-open");
     $modal.addClass("is-open");
@@ -31,10 +31,52 @@ $(function () {
     e.stopPropagation();
   });
 
-  // Temporary: prevent form submission
-  $("#contactForm").on("submit", function (e) {
+  //
+
+  $("#domainForm").on("submit", async function (e) {
     e.preventDefault();
-    // No action for now
-    close();
+    const domainElement = $("#domainInput");
+    if (!domainElement.length) {
+      alert("Error: Elemento de dominio no encontrado.");
+      return;
+    }
+    const domain = domainElement.val();
+    if (typeof domain !== "string") {
+      alert("Error: Valor del dominio no es válido.");
+      return;
+    }
+    const trimmedDomain = domain.trim();
+    if (!trimmedDomain) {
+      alert("Por favor, ingresa un dominio válido.");
+      return;
+    }
+    // Validación básica: debe contener un punto
+    if (!trimmedDomain.includes(".")) {
+      alert("Ingresa un dominio válido, como 'example.com'.");
+      return;
+    }
+
+    const $result = $("#domainResult");
+    $result.html("<p>Cargando...</p>").show();
+
+    try {
+      const response = await $.ajax({
+        url: `/check-domain?domain=${encodeURIComponent(trimmedDomain)}`,
+        method: "GET",
+      });
+      if (response.success) {
+        $result.html(
+          `<p><strong>${response.domain}</strong> - Código de estado: <code>${response.status_code}</code></p>`
+        );
+      } else {
+        $result.html(`<p>Error: ${response.error}</p>`);
+      }
+    } catch (error) {
+      $result.html(
+        `<p>Error en la solicitud: ${error.responseText || error.message}</p>`
+      );
+    }
   });
+
+  //
 });

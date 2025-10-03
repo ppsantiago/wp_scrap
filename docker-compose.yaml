@@ -1,0 +1,12 @@
+services:
+  wp-scrap:
+    image: scrap20-wp-scrap
+    # build: .  # Construye la imagen desde el Dockerfile
+    ports:
+      - "8000:8000"
+    container_name: wp-scrap
+    volumes:
+      - ./app:/app/app
+      - ./templates:/app/templates
+      - ./static:/app/static
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
