@@ -1,9 +1,9 @@
 # app/routes/tools.py
 from fastapi import APIRouter
-from app.services.domain_checker import check_domain_status
+from app.services.scrap_domain import scrap_domain
 
 router = APIRouter()
 
 @router.get("/check-domain", tags=["tools"])
-async def check_domain(domain: str):
-    return await check_domain_status(domain)
+async def scrap(domain: str):
+    return await scrap_domain(domain)

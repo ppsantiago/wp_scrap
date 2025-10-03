@@ -30,7 +30,26 @@ window.App.initDomainForm = function () {
         : await $.ajax({ url: `/check-domain?domain=${encodeURIComponent(trimmedDomain)}`, method: "GET" });
 
       if (response && response.success) {
-        $result.html(`<p><strong>${response.domain}</strong> - Código de estado: <code>${response.status_code}</code></p>`);
+        const seo = response.seo || {};
+        const esc = (v) => (v === null || v === undefined || v === "" ? "-" : String(v).replace(/[&<>]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[s])));
+        const links = seo.links || {};
+        const images = seo.images || {};
+        const seoHtml = `
+          <div class="seo-summary">
+            <p><strong>${esc(response.domain)}</strong> - Código de estado: <code>${esc(response.status_code)}</code></p>
+            <h4>SEO</h4>
+            <ul>
+              <li><strong>Título:</strong> ${esc(seo.title)}</li>
+              <li><strong>Meta descripción:</strong> ${esc(seo.metaDescription)}</li>
+              <li><strong>Cantidad de H1:</strong> ${esc(seo.h1Count)}</li>
+              <li><strong>Canonical:</strong> ${esc(seo.canonical)}</li>
+              <li><strong>Robots:</strong> ${esc(seo.robots)}</li>
+              <li><strong>Conteo de palabras:</strong> ${esc(seo.wordCount)}</li>
+              <li><strong>Links:</strong> total ${esc(links.total)}, internos ${esc(links.internal)}, externos ${esc(links.external)}, nofollow ${esc(links.nofollow)}</li>
+              <li><strong>Imágenes:</strong> total ${esc(images.total)}, sin alt ${esc(images.withoutAlt)}</li>
+            </ul>
+          </div>`;
+        $result.html(seoHtml);
       } else {
         const msg = response && response.error ? response.error : "Error desconocido";
         $result.html(`<p>Error: ${msg}</p>`);
