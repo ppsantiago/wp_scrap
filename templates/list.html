@@ -1,18 +1,11 @@
-<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ title }}</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="container">
-      <h1>{{ app_name }}</h1>
-      <p>Bienvenido a tu app con FastAPI + Jinja2.</p>
-      <div class="card">
-        <h2>Punto de inicio</h2>
-      </div>
-    </main>
-  </body>
-</html>
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+  <h1>Listas</h1>
+  <div class="card">
+    <h2>Lista - sitios</h2>
+    <p>Este es un ejemplo de página que reutiliza el header y footer del layout.</p>
+  </div>
+{% endblock %}

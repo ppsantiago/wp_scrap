@@ -1,24 +1,48 @@
-<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ title }}</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="container">
-      <h1>{{ app_name }}</h1>
-      <p>Bienvenido a tu app con FastAPI + Jinja2.</p>
-      <div class="card">
-        <h2>Punto de inicio</h2>
-        <ul>
-          <li>Ruta de salud: <code>/health</code></li>
-          <li>Archivos estáticos: <code>/static/</code></li>
-          <li>Plantillas: carpeta <code>templates/</code></li>
-          <li>Plantillas: lista <code>list/</code></li>
-        </ul>
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+  <h1>{{ app_name }}</h1>
+  <p>Bienvenido a tu app con FastAPI + Jinja2.</p>
+  <div class="card">
+    <h2>Punto de inicio</h2>
+    <ul>
+      <li>Ruta de salud: <code>/health</code></li>
+      <li>Archivos estáticos: <code>/static/</code></li>
+      <li>Plantillas: carpeta <code>templates/</code></li>
+      <li>Página de lista: <a href="/list">/list</a></li>
+    </ul>
+  </div>
+
+  <div style="margin-top:20px;">
+    <button id="openModalBtn" class="btn-primary">Abrir formulario</button>
+  </div>
+
+  <!-- Modal elements -->
+  <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true"></div>
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <h3 id="modalTitle">Contacto</h3>
+      <button class="icon-button" data-close-modal aria-label="Cerrar">✕</button>
+    </div>
+    <form id="contactForm" class="modal-body">
+      <label>
+        <span>Nombre</span>
+        <input type="text" name="nombre" placeholder="Tu nombre" required />
+      </label>
+      <label>
+        <span>Correo</span>
+        <input type="email" name="correo" placeholder="tu@email.com" required />
+      </label>
+      <label>
+        <span>Mensaje</span>
+        <textarea name="mensaje" rows="4" placeholder="Escribe tu mensaje" required></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close-modal>Cancelar</button>
+        <button type="submit" class="btn-primary">Enviar</button>
       </div>
-    </main>
-  </body>
-</html>
+    </form>
+  </div>
+{% endblock %}

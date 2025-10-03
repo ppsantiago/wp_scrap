@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,23 +22,25 @@ async def health():
 
 
 @app.get("/", response_class=HTMLResponse, tags=["web"])  # home page
-async def home(request: Request):
+async def home_index(request: Request):
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "title": "Home | FastAPI",
             "app_name": "My FastAPI App",
+            "year": datetime.now().year,
         },
     )
 
-@app.get("/list", response_class=HTMLResponse, tags=["web"])  # home page
-async def home(request: Request):
+@app.get("/list", response_class=HTMLResponse, tags=["web"])  # list page
+async def list_page(request: Request):
     return templates.TemplateResponse(
         "list.html",
         {
             "request": request,
-            "title": "Home | FastAPI",
+            "title": "Lista | FastAPI",
             "app_name": "My FastAPI App",
+            "year": datetime.now().year,
         },
     )
