@@ -1,0 +1,50 @@
+{% extends 'base.html' %} 
+{% block title %}Reporte #{{ report_id }} | WP Scrap{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-separator">/</span>
+  <a href="/domains">Dominios</a>
+  <span class="breadcrumb-separator">/</span>
+  <span>Reporte #{{ report_id }}</span>
+</div>
+
+<h1>📄 Reporte #{{ report_id }}</h1>
+<p>Análisis completo del dominio en este momento específico</p>
+
+<!-- Report Data -->
+<div id="report-data-container">
+  <div class="loading">Cargando reporte...</div>
+</div>
+
+<!-- Actions -->
+<div class="card">
+  <div class="card-body">
+    <div style="display: flex; gap: 12px; justify-content: center;">
+      <a href="/domains" class="btn">← Volver a Dominios</a>
+    </div>
+  </div>
+</div>
+
+<!-- Comments Section -->
+<div class="card">
+  <div id="report-comments-container">
+    <!-- Comments will be loaded here by JS -->
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pages/report_detail.js"></script>
+<script>
+  // Initialize report detail page
+  $(function() {
+    if (window.App && typeof window.App.initReportDetail === 'function') {
+      window.App.initReportDetail({{ report_id }});
+    }
+  });
+</script>
+{% endblock %}

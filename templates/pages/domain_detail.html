@@ -1,0 +1,70 @@
+{% extends 'base.html' %} 
+{% block title %}{{ domain_name }} | WP Scrap{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-separator">/</span>
+  <a href="/domains">Dominios</a>
+  <span class="breadcrumb-separator">/</span>
+  <span>{{ domain_name }}</span>
+</div>
+
+<h1>🌐 {{ domain_name }}</h1>
+<p>Información detallada del dominio y su historial de análisis</p>
+
+<!-- Domain Info -->
+<div class="card">
+  <div class="card-header">
+    <h4>📋 Información del Dominio</h4>
+  </div>
+  <div class="card-body">
+    <div id="domain-info-container">
+      <div class="loading">Cargando información...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Actions -->
+<div class="card">
+  <div class="card-body">
+    <div style="display: flex; gap: 12px; justify-content: center;">
+      <a href="/scrap?domain={{ domain_name }}" class="btn-primary">🔍 Analizar Nuevamente</a>
+      <a href="/domains" class="btn">← Volver al Listado</a>
+    </div>
+  </div>
+</div>
+
+<!-- Domain History -->
+<div class="card">
+  <div class="card-header">
+    <h4>📊 Historial de Análisis</h4>
+  </div>
+  <div class="card-body">
+    <div id="domain-history-container">
+      <div class="loading">Cargando historial...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Comments Section -->
+<div class="card">
+  <div id="domain-comments-container">
+    <!-- Comments will be loaded here by JS -->
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pages/domain_detail.js"></script>
+<script>
+  // Initialize domain detail page
+  $(function() {
+    if (window.App && typeof window.App.initDomainDetail === 'function') {
+      window.App.initDomainDetail('{{ domain_name }}');
+    }
+  });
+</script>
+{% endblock %}

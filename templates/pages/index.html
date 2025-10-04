@@ -1,14 +1,70 @@
-{% extends 'base.html' %} {% block title %}{{ title }}{% endblock %} {% block
-content %}
-<h1>{{ app_name }}</h1>
-<p>Dashboard</p>
+{% extends 'base.html' %} 
+{% block title %}Dashboard | WP Scrap{% endblock %}
 
-<div class="cards">
-  <div class="card">
-    <h2>WP - Scraper</h2>
-    <p>Scraper de sitios web</p>
-    <a href="/scrap" class="btn-primary">Ir al scraper</a>
+{% block content %}
+<h1>📊 Dashboard</h1>
+<p>Resumen general de dominios analizados y comentarios</p>
+
+<!-- Statistics Cards -->
+<div id="stats-container">
+  <div class="loading">Cargando estadísticas...</div>
+</div>
+
+<!-- Recent Domains -->
+<div class="card">
+  <div class="card-header">
+    <h4>🌐 Dominios Recientes</h4>
+  </div>
+  <div class="card-body">
+    <div id="recent-domains-container">
+      <div class="loading">Cargando dominios...</div>
+    </div>
   </div>
 </div>
 
+<!-- Recent Comments -->
+<div class="card">
+  <div class="card-header">
+    <h4>💬 Comentarios Recientes</h4>
+  </div>
+  <div class="card-body">
+    <div id="recent-comments-container">
+      <div class="loading">Cargando comentarios...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+  <div class="card-header">
+    <h4>⚡ Accesos Rápidos</h4>
+  </div>
+  <div class="card-body">
+    <div class="cards">
+      <div>
+        <a href="/scrap" class="btn-primary" style="display: block; text-align: center; padding: 16px;">
+          🔍 Analizar Nuevo Dominio
+        </a>
+      </div>
+      <div>
+        <a href="/domains" class="btn-primary" style="display: block; text-align: center; padding: 16px;">
+          📋 Ver Todos los Dominios
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pages/dashboard.js"></script>
+<script>
+  // Initialize dashboard on load
+  $(function() {
+    if (window.App && typeof window.App.initDashboard === 'function') {
+      window.App.initDashboard();
+    }
+  });
+</script>
 {% endblock %}

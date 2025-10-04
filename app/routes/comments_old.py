@@ -27,16 +27,25 @@ class CommentUpdate(BaseModel):
     is_pinned: Optional[bool] = None
 
 
-# ============================================================================
-# RUTAS ESPECÍFICAS (DEBEN IR PRIMERO)
-# ============================================================================
-
 @router.post("", summary="Crear un nuevo comentario")
 async def create_comment(
     comment_data: CommentCreate,
     db: Session = Depends(get_db)
 ):
-    """Crea un nuevo comentario asociado a una entidad específica."""
+    """
+    Crea un nuevo comentario asociado a una entidad específica.
+
+    **Ejemplo:**
+    ```json
+    {
+      "content_type": "domain",
+      "object_id": 1,
+      "author": "usuario_ejemplo",
+      "content": "Este dominio tiene un excelente SEO",
+      "parent_id": null
+    }
+    ```
+    """
     try:
         comment = CommentService.create_comment(
             db=db,
@@ -56,71 +65,6 @@ async def create_comment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/recent", summary="Comentarios recientes")
-async def get_recent_comments(
-    limit: int = Query(20, ge=1, le=100, description="Número máximo de comentarios"),
-    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
-    db: Session = Depends(get_db)
-):
-    """Obtiene comentarios recientes de manera global o filtrados por tipo de entidad."""
-    comments = CommentService.get_recent_comments(
-        db=db,
-        limit=limit,
-        content_type=content_type
-    )
-
-    return {
-        "total_comments": len(comments),
-        "limit": limit,
-        "content_type_filter": content_type,
-        "comments": [comment.to_dict() for comment in comments]
-    }
-
-
-@router.get("/search", summary="Buscar comentarios")
-async def search_comments(
-    q: str = Query(..., description="Texto a buscar"),
-    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
-    limit: int = Query(20, ge=1, le=50, description="Número máximo de resultados"),
-    db: Session = Depends(get_db)
-):
-    """Busca comentarios que contengan texto específico."""
-    if not q.strip():
-        raise HTTPException(status_code=400, detail="El parámetro de búsqueda no puede estar vacío")
-
-    comments = CommentService.search_comments(
-        db=db,
-        query=q.strip(),
-        content_type=content_type,
-        limit=limit
-    )
-
-    return {
-        "query": q,
-        "total_results": len(comments),
-        "limit": limit,
-        "content_type_filter": content_type,
-        "comments": [comment.to_dict() for comment in comments]
-    }
-
-
-@router.get("/statistics", summary="Estadísticas de comentarios")
-async def get_comment_statistics(
-    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
-    db: Session = Depends(get_db)
-):
-    """Obtiene estadísticas generales sobre comentarios"""
-    stats = CommentService.get_comment_statistics(
-        db=db,
-        content_type=content_type
-    )
-
-    return {
-        "content_type_filter": content_type,
-        "statistics": stats
-    }
-
-
 @router.get("/entity/{content_type}/{object_id}", summary="Obtener comentarios de una entidad")
 async def get_entity_comments(
     content_type: str = Path(..., description="Tipo de entidad (domain, report, etc.)"),
@@ -129,7 +73,13 @@ async def get_entity_comments(
     include_inactive: bool = Query(False, description="Incluir comentarios inactivos"),
     db: Session = Depends(get_db)
 ):
-    """Obtiene todos los comentarios asociados a una entidad específica."""
+    """
+    Obtiene todos los comentarios asociados a una entidad específica.
+
+    **Parámetros de consulta:**
+    - `include_replies`: Si incluir respuestas en hilo (por defecto: true)
+    - `include_inactive`: Si incluir comentarios marcados como inactivos (por defecto: false)
+    """
     comments = CommentService.get_comments_for_entity(
         db=db,
         content_type=content_type,
@@ -152,7 +102,10 @@ async def get_comment_thread(
     max_depth: int = Query(5, ge=1, le=10, description="Máxima profundidad de respuestas"),
     db: Session = Depends(get_db)
 ):
-    """Obtiene un hilo completo de comentarios empezando desde un comentario específico."""
+    """
+    Obtiene un hilo completo de comentarios empezando desde un comentario específico.
+    Útil para mostrar conversaciones anidadas.
+    """
     comment = CommentService.get_comment_thread(
         db=db,
         comment_id=comment_id,
@@ -167,64 +120,6 @@ async def get_comment_thread(
         "comment": comment.to_dict()
     }
 
-
-@router.get("/author/{author}", summary="Comentarios por autor")
-async def get_comments_by_author(
-    author: str = Path(..., description="Nombre del autor"),
-    limit: int = Query(50, ge=1, le=100, description="Número máximo de comentarios"),
-    offset: int = Query(0, ge=0, description="Offset para paginación"),
-    db: Session = Depends(get_db)
-):
-    """Obtiene comentarios de un autor específico"""
-    comments = CommentService.get_comments_by_author(
-        db=db,
-        author=author,
-        limit=limit,
-        offset=offset
-    )
-
-    return {
-        "author": author,
-        "total_comments": len(comments),
-        "limit": limit,
-        "offset": offset,
-        "comments": [comment.to_dict() for comment in comments]
-    }
-
-
-@router.get("/domain/{domain_id}", summary="Comentarios de un dominio")
-async def get_domain_comments(
-    domain_id: int = Path(..., description="ID del dominio"),
-    include_replies: bool = Query(True, description="Incluir respuestas"),
-    db: Session = Depends(get_db)
-):
-    """Comentarios asociados a un dominio específico"""
-    return await get_entity_comments(
-        content_type="domain",
-        object_id=domain_id,
-        include_replies=include_replies,
-        db=db
-    )
-
-
-@router.get("/report/{report_id}", summary="Comentarios de un reporte")
-async def get_report_comments(
-    report_id: int = Path(..., description="ID del reporte"),
-    include_replies: bool = Query(True, description="Incluir respuestas"),
-    db: Session = Depends(get_db)
-):
-    """Comentarios asociados a un reporte específico"""
-    return await get_entity_comments(
-        content_type="report",
-        object_id=report_id,
-        include_replies=include_replies,
-        db=db
-    )
-
-
-# ============================================================================
-# RUTAS GENÉRICAS (DEBEN IR AL FINAL)
-# ============================================================================
 
 @router.get("/{comment_id}", summary="Obtener comentario específico")
 async def get_comment(
@@ -271,7 +166,12 @@ async def delete_comment(
     soft_delete: bool = Query(True, description="Borrado lógico (true) o físico (false)"),
     db: Session = Depends(get_db)
 ):
-    """Elimina un comentario. Por defecto usa borrado lógico (marca como inactivo)."""
+    """
+    Elimina un comentario. Por defecto usa borrado lógico (marca como inactivo).
+
+    **Parámetros:**
+    - `soft_delete`: Si true, marca como inactivo; si false, elimina físicamente
+    """
     success = CommentService.delete_comment(
         db=db,
         comment_id=comment_id,
@@ -287,3 +187,129 @@ async def delete_comment(
         "comment_id": comment_id,
         "soft_delete": soft_delete
     }
+
+
+@router.get("/author/{author}", summary="Comentarios por autor")
+async def get_comments_by_author(
+    author: str = Path(..., description="Nombre del autor"),
+    limit: int = Query(50, ge=1, le=100, description="Número máximo de comentarios"),
+    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    db: Session = Depends(get_db)
+):
+    """Obtiene comentarios de un autor específico"""
+    comments = CommentService.get_comments_by_author(
+        db=db,
+        author=author,
+        limit=limit,
+        offset=offset
+    )
+
+    return {
+        "author": author,
+        "total_comments": len(comments),
+        "limit": limit,
+        "offset": offset,
+        "comments": [comment.to_dict() for comment in comments]
+    }
+
+
+@router.get("/recent", summary="Comentarios recientes")
+async def get_recent_comments(
+    limit: int = Query(20, ge=1, le=100, description="Número máximo de comentarios"),
+    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene comentarios recientes de manera global o filtrados por tipo de entidad.
+    Útil para mostrar actividad reciente en la plataforma.
+    """
+    comments = CommentService.get_recent_comments(
+        db=db,
+        limit=limit,
+        content_type=content_type
+    )
+
+    return {
+        "total_comments": len(comments),
+        "limit": limit,
+        "content_type_filter": content_type,
+        "comments": [comment.to_dict() for comment in comments]
+    }
+
+
+@router.get("/search", summary="Buscar comentarios")
+async def search_comments(
+    q: str = Query(..., description="Texto a buscar"),
+    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
+    limit: int = Query(20, ge=1, le=50, description="Número máximo de resultados"),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca comentarios que contengan texto específico.
+    Útil para encontrar comentarios relevantes rápidamente.
+    """
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="El parámetro de búsqueda no puede estar vacío")
+
+    comments = CommentService.search_comments(
+        db=db,
+        query=q.strip(),
+        content_type=content_type,
+        limit=limit
+    )
+
+    return {
+        "query": q,
+        "total_results": len(comments),
+        "limit": limit,
+        "content_type_filter": content_type,
+        "comments": [comment.to_dict() for comment in comments]
+    }
+
+
+@router.get("/statistics", summary="Estadísticas de comentarios")
+async def get_comment_statistics(
+    content_type: Optional[str] = Query(None, description="Tipo de entidad específico"),
+    db: Session = Depends(get_db)
+):
+    """Obtiene estadísticas generales sobre comentarios"""
+    stats = CommentService.get_comment_statistics(
+        db=db,
+        content_type=content_type
+    )
+
+    return {
+        "content_type_filter": content_type,
+        "statistics": stats
+    }
+
+
+# Rutas específicas para dominios y reportes (para facilitar el acceso)
+@router.get("/domain/{domain_id}", summary="Comentarios de un dominio")
+async def get_domain_comments(
+    domain_id: int = Path(..., description="ID del dominio"),
+    include_replies: bool = Query(True, description="Incluir respuestas"),
+    db: Session = Depends(get_db)
+):
+    """Comentarios asociados a un dominio específico"""
+    return await get_entity_comments(
+        content_type="domain",
+        object_id=domain_id,
+        include_replies=include_replies,
+        db=db
+    )
+
+
+@router.get("/report/{report_id}", summary="Comentarios de un reporte")
+async def get_report_comments(
+    report_id: int = Path(..., description="ID del reporte"),
+    include_replies: bool = Query(True, description="Incluir respuestas"),
+    db: Session = Depends(get_db)
+):
+    """Comentarios asociados a un reporte específico"""
+    return await get_entity_comments(
+        content_type="report",
+        object_id=report_id,
+        include_replies=include_replies,
+        db=db
+    )

@@ -1,0 +1,60 @@
+{% extends 'base.html' %} 
+{% block title %}Dominios | WP Scrap{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-separator">/</span>
+  <span>Dominios</span>
+</div>
+
+<h1>🌐 Dominios Analizados</h1>
+<p>Listado completo de dominios analizados con sus métricas</p>
+
+<!-- Filters -->
+<div class="filters-container">
+  <div class="filters-row">
+    <input 
+      type="text" 
+      id="domain-search" 
+      class="filter-input" 
+      placeholder="Buscar dominio..."
+    />
+    <a href="/scrap" class="btn-primary">+ Analizar Nuevo Dominio</a>
+  </div>
+</div>
+
+<!-- Domains List -->
+<div class="card">
+  <div class="card-body">
+    <div id="domains-list-container">
+      <div class="loading">Cargando dominios...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Pagination -->
+<div class="pagination">
+  <button id="prev-page-btn" class="pagination-btn">
+    ← Anterior
+  </button>
+  <span id="pagination-info" class="pagination-info"></span>
+  <button id="next-page-btn" class="pagination-btn">
+    Siguiente →
+  </button>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pages/domains.js"></script>
+<script>
+  // Initialize domains list on load
+  $(function() {
+    if (window.App && typeof window.App.initDomainsList === 'function') {
+      window.App.initDomainsList();
+    }
+  });
+</script>
+{% endblock %}

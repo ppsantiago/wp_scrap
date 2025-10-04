@@ -18,8 +18,11 @@
     <!-- Modular JS: utils and components loaded before main entrypoint -->
     <script src="/static/js/utils/ajax.js"></script>
     <script src="/static/js/utils/validation.js"></script>
+    <script src="/static/js/utils/api.js"></script>
     <script src="/static/js/components/modal.js"></script>
     <script src="/static/js/components/domainForm.js"></script>
+    <script src="/static/js/components/comments.js"></script>
     <script src="/static/main.js"></script>
+    {% block extra_scripts %}{% endblock %}
   </body>
 </html>
