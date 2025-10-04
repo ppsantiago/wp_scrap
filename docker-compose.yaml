@@ -1,7 +1,7 @@
 services:
   wp-scrap:
     image: scrap20-wp-scrap
-    # build: .  # Construye la imagen desde el Dockerfile
+    build: .  # Construye la imagen desde el Dockerfile
     ports:
       - "8000:8000"
     container_name: wp-scrap

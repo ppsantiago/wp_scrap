@@ -30,8 +30,12 @@ class NetworkCollector:
         self.by_type: dict[str, dict[str,int]] = {}   # {type: {"count": n, "bytes": b}}
         self.third_party_bytes = 0
         self.first_party_bytes = 0
+        # NUEVO: detalles de imágenes
+        self.images: list[dict] = []   # [{url, bytes, content_type, ext}]
+        self.images_by_mime: dict[str, int] = {}
+        self.images_by_ext: dict[str, int] = {}
 
-    def _add(self, typ: str, size: int, third_party: bool):
+    def _add(self, typ: str, size: int, third_party: bool, url: str = "", content_type: str | None = None):
         self.count += 1
         self.total_bytes += size
         bucket = self.by_type.setdefault(typ, {"count": 0, "bytes": 0})
@@ -42,13 +46,36 @@ class NetworkCollector:
         else:
             self.first_party_bytes += size
 
+        # Si es imagen, guardamos detalles y contamos por formato
+        if typ == "image":
+            # Extensión (heurística)
+            ext = ""
+            low = url.lower()
+            for e in [".avif",".webp",".svg",".png",".jpg",".jpeg",".gif",".ico"]:
+                if e in low:
+                    ext = e.lstrip(".")
+                    break
+            # MIME (si viene en header)
+            mime = (content_type or "").split(";")[0].strip() if content_type else ""
+            self.images.append({
+                "url": url, "bytes": size, "content_type": mime, "ext": ext
+            })
+            if mime:
+                self.images_by_mime[mime] = self.images_by_mime.get(mime, 0) + 1
+            if ext:
+                self.images_by_ext[ext] = self.images_by_ext.get(ext, 0) + 1
+
     def as_dict(self):
         return {
             "count": self.count,
             "total_bytes": self.total_bytes,
             "by_type": self.by_type,
             "first_party_bytes": self.first_party_bytes,
-            "third_party_bytes": self.third_party_bytes
+            "third_party_bytes": self.third_party_bytes,
+            # NUEVO: resúmenes de imágenes
+            "images_by_mime": self.images_by_mime,
+            "images_by_ext": self.images_by_ext,
+            "images_sample": self.images[:10],  # pequeña muestra para depurar
         }
 
 EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", re.I)
@@ -163,12 +190,14 @@ async def scrap_domain(domain: str, max_pages:int=60, timeout:int=10000) -> dict
                     rtype = resp.request.resource_type
                     typ = _guess_type(url, rtype)
                     headers = resp.headers or {}
-                    # content-length puede no estar, asumimos 0 si falta
+                    # Tamaño (puede faltar)
                     size = int(headers.get("content-length","0") or "0")
                     # 1ros vs 3ros
                     host = urlparse(url).netloc.lower()
                     third = (host != base_host and host != "")
-                    net._add(typ, size, third)
+                    # NUEVO: content-type
+                    ctype = headers.get("content-type")
+                    net._add(typ, size, third, url=url, content_type=ctype)
                 except Exception:
                     pass
 
@@ -208,6 +237,14 @@ async def scrap_domain(domain: str, max_pages:int=60, timeout:int=10000) -> dict
 
             seo = await get_seo_stats(page, main_headers) if response else None  # (tu función actual)
             status_code = response.status if response else None
+
+            # Inyectamos resumen de formatos de imágenes (MIME y extensión) en el bloque SEO
+            if seo is not None:
+                seo.setdefault("images", {})
+                # del collector (red de la home)
+                req_dict = net.as_dict()
+                seo["images"]["byMime"] = req_dict.get("images_by_mime", {})
+                seo["images"]["byExt"] = req_dict.get("images_by_ext", {})
 
             tech = {
               "requests": net.as_dict(),

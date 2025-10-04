@@ -45,6 +45,17 @@ window.App.initDomainForm = function () {
 
   const links = seo.links || {};
   const images = seo.images || {};
+  const imgByMime = images.byMime || {};
+  const imgByExt = images.byExt || {};
+
+  const mimeList = Object.keys(imgByMime).length
+    ? `<ul>${Object.entries(imgByMime).map(([k,v]) => ` <li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>` 
+    : "-";
+
+  const extList = Object.keys(imgByExt).length
+    ? `<ul>${Object.entries(imgByExt).map(([k,v]) => ` <li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>` 
+    : "-";
+
   const seoHtml = `
     <div class="seo-summary">
       <p><strong>${esc(response.domain)}</strong> - Código de estado: <code>${esc(response.status_code)}</code></p>
@@ -58,6 +69,8 @@ window.App.initDomainForm = function () {
         <li><strong>Conteo de palabras:</strong> ${esc(seo.wordCount)}</li>
         <li><strong>Links:</strong> total ${esc(links.total)}, internos ${esc(links.internal)}, externos ${esc(links.external)}, nofollow ${esc(links.nofollow)}</li>
         <li><strong>Imágenes:</strong> total ${esc(images.total)}, sin alt ${esc(images.withoutAlt)}</li>
+        <li><strong>Imágenes por MIME:</strong> ${mimeList}</li>
+        <li><strong>Imágenes por extensión:</strong> ${extList}</li>
       </ul>
     </div>`;
 
@@ -121,6 +134,14 @@ window.App.initDomainForm = function () {
     `<tr><td>${esc(k)}</td><td>${esc(v.count)}</td><td>${esc(v.bytes)}</td></tr>` 
   ).join("");
 
+  // NUEVO: formatos de imágenes en técnicas
+  const reqImgMime = (req.images_by_mime || {});
+  const reqImgExt  = (req.images_by_ext  || {});
+  const reqMimeList = Object.keys(reqImgMime).length
+    ? `<ul>${Object.entries(reqImgMime).map(([k,v]) => ` <li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`  : "-";
+  const reqExtList = Object.keys(reqImgExt).length
+    ? `<ul>${Object.entries(reqImgExt).map(([k,v]) => ` <li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`  : "-";
+
   const techHtml = `
     <h4>Técnicas</h4>
     <ul>
@@ -133,6 +154,11 @@ window.App.initDomainForm = function () {
         <thead><tr><th>Tipo</th><th>#</th><th>Bytes</th></tr></thead>
         <tbody>${byTypeRows || ""}</tbody>
       </table>
+    </div>
+    <h5>Formatos de imágenes (red)</h5>
+    <div class="grid">
+      <div><strong>Por MIME</strong>${reqMimeList}</div>
+      <div><strong>Por extensión</strong>${reqExtList}</div>
     </div>
     <h4>Security headers</h4>
     <ul>
