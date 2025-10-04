@@ -37,9 +37,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error al inicializar base de datos: {str(e)}")
         raise
-    
+
     yield
-    
+
     # Shutdown: Limpiar recursos si es necesario
     logger.info("Cerrando aplicación...")
 
@@ -63,6 +63,53 @@ app.include_router(web_router)
 app.include_router(tools_router)
 app.include_router(reports_router)
 app.include_router(comments_router)  # Nueva ruta de comentarios
+
+# Ruta de salud
+@app.get("/health", tags=["health"])
+async def health():
+    """Endpoint de health check"""
+    return {"status": "ok", "message": "Application is running"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manejador del ciclo de vida de la aplicaci n.
+    Se ejecuta al inicio y al cierre.
+    """
+    # Startup: Inicializar base de datos
+    logger.info("Inicializando base de datos...")
+    try:
+        init_db()
+        logger.info("Base de datos inicializada correctamente")
+    except Exception as e:
+        logger.error(f"Error al inicializar base de datos: {str(e)}")
+        raise
+    
+    yield
+    
+    # Shutdown: Limpiar recursos si es necesario
+    logger.info("Cerrando aplicaci n...")
+
+
+# Crea la app con lifespan
+app = FastAPI(
+    title="WP Scrap - Domain Analyzer",
+    description="API para análisis de dominios con scraping, SEO y métricas técnicas",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Directorio base
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Archivos est ticos y plantillas
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# Registra routers
+app.include_router(web_router)
+app.include_router(tools_router)
+app.include_router(reports_router)
 
 # Ruta de salud
 @app.get("/health", tags=["health"])

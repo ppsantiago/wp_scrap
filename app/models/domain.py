@@ -1,0 +1,266 @@
+# app/models/domain.py
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Index, func, and_
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from app.database import Base
+import json
+import zlib
+import base64
+
+
+class Comment(Base):
+    """
+    Modelo independiente para comentarios que pueden estar asociados a diferentes entidades.
+    Soporta hilos de comentarios con respuestas anidadas.
+    """
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content_type = Column(String(50), nullable=False, index=True)  # domain, report, etc.
+    object_id = Column(Integer, nullable=False, index=True)  # ID de la entidad comentada
+    parent_id = Column(Integer, ForeignKey("comments.id"), index=True)  # Para respuestas anidadas
+
+    # Información del comentario
+    author = Column(String(255), nullable=False)  # Por ahora texto, futuro: user_id
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Estado del comentario
+    is_active = Column(Boolean, default=True, index=True)
+    is_pinned = Column(Boolean, default=False)  # Comentarios destacados
+
+    # Relaciones
+    parent = relationship("Comment", remote_side=[id])  # Comentario padre
+    replies = relationship("Comment", remote_side=[parent_id])  # Respuestas
+
+    # Índices compuestos para consultas eficientes
+    __table_args__ = (
+        Index('idx_comment_entity', 'content_type', 'object_id'),
+        Index('idx_comment_thread', 'parent_id', 'created_at'),
+    )
+
+    def to_dict(self, include_replies: bool = True):
+        """Serializa el comentario a diccionario"""
+        data = {
+            "id": self.id,
+            "content_type": self.content_type,
+            "object_id": self.object_id,
+            "parent_id": self.parent_id,
+            "author": self.author,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "is_active": self.is_active,
+            "is_pinned": self.is_pinned,
+            "reply_count": len(self.replies) if self.replies else 0
+        }
+
+        if include_replies and self.replies:
+            data["replies"] = [reply.to_dict(include_replies=False) for reply in self.replies]
+
+        return data
+
+    def add_reply(self, author: str, content: str):
+        """Agrega una respuesta a este comentario"""
+        reply = Comment(
+            content_type=self.content_type,
+            object_id=self.object_id,
+            parent_id=self.id,
+            author=author,
+            content=content
+        )
+        return reply
+
+    @classmethod
+    def get_comments_for_entity(cls, db_session, content_type: str, object_id: int):
+        """Obtiene todos los comentarios raíz para una entidad específica"""
+        return db_session.query(cls).filter(
+            and_(
+                cls.content_type == content_type,
+                cls.object_id == object_id,
+                cls.parent_id.is_(None),
+                cls.is_active == True
+            )
+        ).order_by(cls.created_at).all()
+
+
+class Domain(Base):
+    """
+    Modelo que representa un dominio rastreado.
+    Mantiene metadatos y relación con múltiples reportes históricos.
+    """
+    __tablename__ = "domains"
+
+    id = Column(Integer, primary_key=True, index=True)
+    domain = Column(String(255), unique=True, index=True, nullable=False)
+    first_scraped_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_scraped_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    total_reports = Column(Integer, default=0)
+    status = Column(String(50), default="active")  # active, archived, error
+
+    # Relación con reportes
+    reports = relationship("Report", back_populates="domain", cascade="all, delete-orphan")
+
+    # Índice compuesto para consultas por estado y fecha
+    __table_args__ = (
+        Index('idx_domain_status_date', 'status', 'last_scraped_at'),
+    )
+
+    def to_dict(self):
+        """Serializa el dominio a diccionario"""
+        return {
+            "id": self.id,
+            "domain": self.domain,
+            "first_scraped_at": self.first_scraped_at.isoformat() if self.first_scraped_at else None,
+            "last_scraped_at": self.last_scraped_at.isoformat() if self.last_scraped_at else None,
+            "total_reports": self.total_reports,
+            "status": self.status
+        }
+
+
+class Report(Base):
+    """
+    Modelo que representa un reporte de scraping de un dominio.
+    Almacena datos completos en JSON (comprimido si es grande).
+    """
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    domain_id = Column(Integer, ForeignKey("domains.id", ondelete="CASCADE"), nullable=False)
+    scraped_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Metadatos del scraping
+    status_code = Column(Integer)
+    success = Column(Boolean, nullable=False, default=False)
+    error_message = Column(Text)
+
+    # Datos completos como JSON (pueden estar comprimidos)
+    seo_data = Column(Text)
+    tech_data = Column(Text)
+    security_data = Column(Text)
+    site_data = Column(Text)
+    pages_data = Column(Text)  # Array de páginas individuales
+
+    is_compressed = Column(Boolean, default=False)  # Indica si los datos están comprimidos
+
+    # Métricas cacheadas para consultas rápidas (sin parsear JSON)
+    pages_crawled = Column(Integer, default=0)
+    seo_title = Column(String(500))
+    seo_word_count = Column(Integer)
+    seo_links_total = Column(Integer)
+    seo_images_total = Column(Integer)
+    tech_requests_count = Column(Integer)
+    tech_total_bytes = Column(Integer)
+    tech_ttfb = Column(Integer)  # Time to first byte
+    contacts_emails_count = Column(Integer, default=0)
+    contacts_phones_count = Column(Integer, default=0)
+    forms_found = Column(Integer, default=0)
+
+    # Relación con dominio
+    domain = relationship("Domain", back_populates="reports")
+
+    # Índices compuestos para consultas eficientes
+    __table_args__ = (
+        Index('idx_report_domain_date', 'domain_id', 'scraped_at'),
+        Index('idx_report_success', 'success', 'scraped_at'),
+    )
+
+    @staticmethod
+    def _compress_if_large(data: str, threshold: int = 10000) -> tuple[str, bool]:
+        """
+        Comprime el string JSON si supera el threshold (en caracteres).
+        Retorna (data, is_compressed)
+        """
+        if len(data) > threshold:
+            compressed = zlib.compress(data.encode('utf-8'))
+            encoded = base64.b64encode(compressed).decode('ascii')
+            return encoded, True
+        return data, False
+
+    @staticmethod
+    def _decompress_if_needed(data: str, is_compressed: bool) -> str:
+        """Descomprime el string si es necesario"""
+        if not data:
+            return "{}"
+        if is_compressed:
+            decoded = base64.b64decode(data.encode('ascii'))
+            return zlib.decompress(decoded).decode('utf-8')
+        return data
+
+    def set_json_data(self, field: str, data: dict):
+        """Serializa y opcionalmente comprime datos JSON"""
+        json_str = json.dumps(data, ensure_ascii=False)
+        compressed_str, is_compressed = self._compress_if_large(json_str)
+        setattr(self, field, compressed_str)
+        if field == "seo_data":  # Solo marcamos compresión si algún campo es comprimido
+            self.is_compressed = is_compressed or self.is_compressed
+
+    def get_json_data(self, field: str) -> dict:
+        """Deserializa y opcionalmente descomprime datos JSON"""
+        raw_data = getattr(self, field, None)
+        if not raw_data:
+            return {}
+        json_str = self._decompress_if_needed(raw_data, self.is_compressed)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            return {}
+
+    def to_dict(self, include_full_data: bool = False):
+        """
+        Serializa el reporte a diccionario.
+
+        Args:
+            include_full_data: Si True, incluye todos los datos JSON completos.
+                              Si False, solo incluye métricas cacheadas (más rápido).
+        """
+        base = {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
+            "status_code": self.status_code,
+            "success": self.success,
+            "error_message": self.error_message,
+            "metrics": {
+                "pages_crawled": self.pages_crawled,
+                "seo_title": self.seo_title,
+                "seo_word_count": self.seo_word_count,
+                "seo_links_total": self.seo_links_total,
+                "seo_images_total": self.seo_images_total,
+                "tech_requests_count": self.tech_requests_count,
+                "tech_total_bytes": self.tech_total_bytes,
+                "tech_ttfb": self.tech_ttfb,
+                "contacts_emails_count": self.contacts_emails_count,
+                "contacts_phones_count": self.contacts_phones_count,
+                "forms_found": self.forms_found,
+            }
+        }
+
+        if include_full_data:
+            base.update({
+                "seo": self.get_json_data("seo_data"),
+                "tech": self.get_json_data("tech_data"),
+                "security": self.get_json_data("security_data"),
+                "site": self.get_json_data("site_data"),
+                "pages": self.get_json_data("pages_data"),
+            })
+
+        return base
+
+    def to_frontend_format(self):
+        """
+        Convierte el reporte al formato esperado por el frontend.
+        Compatible con la estructura actual de domainForm.js
+        """
+        return {
+            "domain": self.domain.domain if self.domain else "unknown",
+            "status_code": self.status_code,
+            "success": self.success,
+            "error": self.error_message,
+            "seo": self.get_json_data("seo_data"),
+            "tech": self.get_json_data("tech_data"),
+            "security": self.get_json_data("security_data"),
+            "site": self.get_json_data("site_data"),
+            "pages": self.get_json_data("pages_data"),
+        }

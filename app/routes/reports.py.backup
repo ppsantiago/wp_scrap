@@ -1,0 +1,574 @@
+# app/routes/reports.py
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from sqlalchemy.orm import Session
+from app.services.storage_service import StorageService
+from app.services.comment_service import CommentService
+from app.database import get_db
+from typing import List, Optional
+import logging
+
+router = APIRouter(prefix="/reports", tags=["reports"])
+logger = logging.getLogger(__name__)
+
+
+@router.get("/domains", summary="Listar todos los dominios")
+async def get_domains(
+    limit: int = Query(100, ge=1, le=1000, description="Número máximo de dominios"),
+    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene la lista de todos los dominios rastreados.
+    Ordenados por último scraping (más recientes primero).
+    """
+    domains = StorageService.get_all_domains(db, limit=limit, offset=offset)
+    return {
+        "total": len(domains),
+        "limit": limit,
+        "offset": offset,
+        "domains": [d.to_dict() for d in domains]
+    }
+
+
+@router.get("/domain/{domain_name}", summary="Obtener información de un dominio")
+async def get_domain_info(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene la información completa de un dominio específico.
+    """
+    domain = StorageService.get_domain_by_name(db, domain_name)
+    if not domain:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+
+    return domain.to_dict()
+
+
+@router.get("/domain/{domain_name}/history", summary="Historial de reportes de un dominio")
+async def get_domain_history(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    limit: int = Query(20, ge=1, le=100, description="Número máximo de reportes"),
+    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    success_only: bool = Query(False, description="Solo reportes exitosos"),
+    include_data: bool = Query(False, description="Incluir datos JSON completos"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el historial de reportes de un dominio específico.
+    Por defecto solo retorna métricas (más rápido).
+    Usa include_data=true para obtener los datos completos.
+    """
+    reports = StorageService.get_domain_reports(
+        db,
+        domain_name=domain_name,
+        limit=limit,
+        offset=offset,
+        success_only=success_only
+    )
+
+    if not reports:
+        # Verificar si el dominio existe
+        domain = StorageService.get_domain_by_name(db, domain_name)
+        if not domain:
+            raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+        return {
+            "domain": domain_name,
+            "total": 0,
+            "reports": []
+        }
+
+    return {
+        "domain": domain_name,
+        "total": len(reports),
+        "limit": limit,
+        "offset": offset,
+        "reports": [r.to_dict(include_full_data=include_data) for r in reports]
+    }
+
+
+@router.get("/domain/{domain_name}/latest", summary="Último reporte de un dominio")
+async def get_latest_report(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el reporte más reciente de un dominio.
+    Retorna el formato completo compatible con el frontend.
+    """
+    report = StorageService.get_latest_report(db, domain_name)
+
+    if not report:
+        domain = StorageService.get_domain_by_name(db, domain_name)
+        if not domain:
+            raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+        raise HTTPException(status_code=404, detail=f"No hay reportes para '{domain_name}'")
+
+    return report.to_frontend_format()
+
+
+@router.get("/report/{report_id}", summary="Obtener un reporte específico")
+async def get_report(
+    report_id: int = Path(..., description="ID del reporte"),
+    format: str = Query("full", regex="^(full|frontend|metrics)$", description="Formato de salida"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene un reporte específico por su ID.
+
+    Formatos disponibles:
+    - full: Todos los datos del reporte
+    - frontend: Formato compatible con domainForm.js
+    - metrics: Solo métricas cacheadas (más rápido)
+    """
+    report = StorageService.get_report_by_id(db, report_id)
+
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    if format == "frontend":
+        return report.to_frontend_format()
+    elif format == "metrics":
+        return report.to_dict(include_full_data=False)
+    else:  # full
+        return report.to_dict(include_full_data=True)
+
+
+@router.get("/recent", summary="Reportes recientes de todos los dominios")
+async def get_recent_reports(
+    days: int = Query(7, ge=1, le=90, description="Días hacia atrás"),
+    limit: int = Query(50, ge=1, le=200, description="Número máximo de reportes"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene los reportes más recientes de todos los dominios.
+    Útil para dashboard o vista general.
+    """
+    reports = StorageService.get_recent_reports(db, days=days, limit=limit)
+
+    return {
+        "days": days,
+        "total": len(reports),
+        "reports": [r.to_dict(include_full_data=False) for r in reports]
+    }
+
+
+@router.delete("/domain/{domain_name}/cleanup", summary="Limpiar reportes antiguos")
+async def cleanup_old_reports(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    keep_latest: int = Query(10, ge=1, le=100, description="Cantidad de reportes a mantener"),
+    db: Session = Depends(get_db)
+):
+    """
+    Elimina reportes antiguos de un dominio, manteniendo solo los N más recientes.
+    Útil para gestionar el tamaño de la base de datos.
+    """
+    deleted_count = StorageService.delete_old_reports(db, domain_name, keep_latest)
+
+    return {
+        "domain": domain_name,
+        "deleted": deleted_count,
+        "kept": keep_latest,
+        "message": f"Se eliminaron {deleted_count} reportes antiguos"
+    }
+
+
+@router.get("/statistics", summary="Estadísticas generales")
+async def get_statistics(db: Session = Depends(get_db)):
+    """
+    Obtiene estadísticas generales de la base de datos.
+    Incluye contadores, tasas de éxito y dominios más rastreados.
+    """
+    stats = StorageService.get_statistics(db)
+    return stats
+
+
+@router.get("/compare/{domain_name}", summary="Comparar reportes de un dominio")
+async def compare_reports(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    report_ids: str = Query(..., description="IDs de reportes separados por coma (ej: 1,5,10)"),
+    metrics: str = Query(
+        "seo_word_count,tech_requests_count,tech_total_bytes,pages_crawled",
+        description="Métricas a comparar separadas por coma"
+    ),
+    db: Session = Depends(get_db)
+):
+    """
+    Compara métricas específicas entre diferentes reportes del mismo dominio.
+    Útil para ver la evolución del sitio en el tiempo.
+    """
+    # Parsear IDs
+    try:
+        ids = [int(id.strip()) for id in report_ids.split(",")]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="IDs de reportes inválidos")
+
+    # Parsear métricas
+    metric_list = [m.strip() for m in metrics.split(",")]
+
+    # Obtener reportes
+    domain = StorageService.get_domain_by_name(db, domain_name)
+    if not domain:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+
+    comparison = []
+    for report_id in ids:
+        report = StorageService.get_report_by_id(db, report_id)
+        if not report or report.domain_id != domain.id:
+            continue
+
+        report_data = {
+            "report_id": report.id,
+            "scraped_at": report.scraped_at.isoformat() if report.scraped_at else None,
+            "metrics": {}
+        }
+
+        for metric in metric_list:
+            if hasattr(report, metric):
+                report_data["metrics"][metric] = getattr(report, metric)
+
+        comparison.append(report_data)
+
+    return {
+        "domain": domain_name,
+        "reports_compared": len(comparison),
+        "metrics": metric_list,
+        "comparison": comparison
+    }
+
+
+# Nuevas rutas que incluyen comentarios
+
+@router.get("/domain/{domain_name}/with-comments", summary="Dominio con comentarios")
+async def get_domain_with_comments(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    include_reports: bool = Query(True, description="Incluir reportes del dominio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene información completa de un dominio incluyendo sus comentarios.
+    """
+    # Obtener información del dominio
+    domain = StorageService.get_domain_by_name(db, domain_name)
+    if not domain:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+
+    # Obtener comentarios del dominio
+    comments = CommentService.get_comments_for_entity(
+        db=db,
+        content_type="domain",
+        object_id=domain.id,
+        include_replies=True
+    )
+
+    result = domain.to_dict()
+    result["comments"] = [comment.to_dict() for comment in comments]
+
+    # Incluir reportes si se solicita
+    if include_reports:
+        reports = StorageService.get_domain_reports(db, domain_name, limit=5)
+        result["recent_reports"] = [r.to_dict(include_full_data=False) for r in reports]
+
+    return result
+
+
+@router.get("/report/{report_id}/with-comments", summary="Reporte con comentarios")
+async def get_report_with_comments(
+    report_id: int = Path(..., description="ID del reporte"),
+    format: str = Query("frontend", regex="^(full|frontend|metrics)$", description="Formato de salida"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene un reporte específico incluyendo sus comentarios asociados.
+    """
+    # Obtener reporte
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    # Obtener comentarios del reporte
+    comments = CommentService.get_comments_for_entity(
+        db=db,
+        content_type="report",
+        object_id=report.id,
+        include_replies=True
+    )
+
+    # Construir respuesta según formato solicitado
+    if format == "frontend":
+        result = report.to_frontend_format()
+    elif format == "metrics":
+        result = report.to_dict(include_full_data=False)
+    else:  # full
+        result = report.to_dict(include_full_data=True)
+
+    result["comments"] = [comment.to_dict() for comment in comments]
+
+    return result
+
+
+@router.get("/domains/with-recent-comments", summary="Dominios con comentarios recientes")
+async def get_domains_with_recent_comments(
+    limit: int = Query(20, ge=1, le=50, description="Número máximo de dominios"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene dominios que tienen comentarios recientes.
+    Útil para ver qué dominios están generando discusión.
+    """
+    # Obtener comentarios recientes de dominios
+    recent_comments = CommentService.get_recent_comments(
+        db=db,
+        limit=limit * 2,  # Obtener más para filtrar
+        content_type="domain"
+    )
+
+    # Extraer IDs únicos de dominios comentados
+    domain_ids = list(set(comment.object_id for comment in recent_comments))
+
+    # Obtener información de los dominios
+    domains_with_comments = []
+    for domain_id in domain_ids[:limit]:  # Limitar al número solicitado
+        domain = StorageService.get_domain_by_id(db, domain_id)
+        if domain:
+            # Obtener comentarios recientes para este dominio
+            domain_comments = [
+                comment for comment in recent_comments
+                if comment.object_id == domain_id
+            ][:3]  # Máximo 3 comentarios recientes
+
+            domain_data = domain.to_dict()
+            domain_data["recent_comments"] = [comment.to_dict() for comment in domain_comments]
+            domains_with_comments.append(domain_data)
+
+    return {
+        "total_domains": len(domains_with_comments),
+        "limit": limit,
+        "domains": domains_with_comments
+    }
+
+
+@router.get("/domains", summary="Listar todos los dominios")
+async def get_domains(
+    limit: int = Query(100, ge=1, le=1000, description="Número máximo de dominios"),
+    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene la lista de todos los dominios rastreados.
+    Ordenados por último scraping (más recientes primero).
+    """
+    domains = StorageService.get_all_domains(db, limit=limit, offset=offset)
+    return {
+        "total": len(domains),
+        "limit": limit,
+        "offset": offset,
+        "domains": [d.to_dict() for d in domains]
+    }
+
+
+@router.get("/domain/{domain_name}", summary="Obtener información de un dominio")
+async def get_domain_info(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene la información completa de un dominio específico.
+    """
+    domain = StorageService.get_domain_by_name(db, domain_name)
+    if not domain:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+    
+    return domain.to_dict()
+
+
+@router.get("/domain/{domain_name}/history", summary="Historial de reportes de un dominio")
+async def get_domain_history(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    limit: int = Query(20, ge=1, le=100, description="Número máximo de reportes"),
+    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    success_only: bool = Query(False, description="Solo reportes exitosos"),
+    include_data: bool = Query(False, description="Incluir datos JSON completos"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el historial de reportes de un dominio específico.
+    Por defecto solo retorna métricas (más rápido).
+    Usa include_data=true para obtener los datos completos.
+    """
+    reports = StorageService.get_domain_reports(
+        db,
+        domain_name=domain_name,
+        limit=limit,
+        offset=offset,
+        success_only=success_only
+    )
+    
+    if not reports:
+        # Verificar si el dominio existe
+        domain = StorageService.get_domain_by_name(db, domain_name)
+        if not domain:
+            raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+        return {
+            "domain": domain_name,
+            "total": 0,
+            "reports": []
+        }
+    
+    return {
+        "domain": domain_name,
+        "total": len(reports),
+        "limit": limit,
+        "offset": offset,
+        "reports": [r.to_dict(include_full_data=include_data) for r in reports]
+    }
+
+
+@router.get("/domain/{domain_name}/latest", summary="Último reporte de un dominio")
+async def get_latest_report(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el reporte más reciente de un dominio.
+    Retorna el formato completo compatible con el frontend.
+    """
+    report = StorageService.get_latest_report(db, domain_name)
+    
+    if not report:
+        domain = StorageService.get_domain_by_name(db, domain_name)
+        if not domain:
+            raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+        raise HTTPException(status_code=404, detail=f"No hay reportes para '{domain_name}'")
+    
+    return report.to_frontend_format()
+
+
+@router.get("/report/{report_id}", summary="Obtener un reporte específico")
+async def get_report(
+    report_id: int = Path(..., description="ID del reporte"),
+    format: str = Query("full", regex="^(full|frontend|metrics)$", description="Formato de salida"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene un reporte específico por su ID.
+    
+    Formatos disponibles:
+    - full: Todos los datos del reporte
+    - frontend: Formato compatible con domainForm.js
+    - metrics: Solo métricas cacheadas (más rápido)
+    """
+    report = StorageService.get_report_by_id(db, report_id)
+    
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+    
+    if format == "frontend":
+        return report.to_frontend_format()
+    elif format == "metrics":
+        return report.to_dict(include_full_data=False)
+    else:  # full
+        return report.to_dict(include_full_data=True)
+
+
+@router.get("/recent", summary="Reportes recientes de todos los dominios")
+async def get_recent_reports(
+    days: int = Query(7, ge=1, le=90, description="Días hacia atrás"),
+    limit: int = Query(50, ge=1, le=200, description="Número máximo de reportes"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene los reportes más recientes de todos los dominios.
+    Útil para dashboard o vista general.
+    """
+    reports = StorageService.get_recent_reports(db, days=days, limit=limit)
+    
+    return {
+        "days": days,
+        "total": len(reports),
+        "reports": [r.to_dict(include_full_data=False) for r in reports]
+    }
+
+
+@router.delete("/domain/{domain_name}/cleanup", summary="Limpiar reportes antiguos")
+async def cleanup_old_reports(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    keep_latest: int = Query(10, ge=1, le=100, description="Cantidad de reportes a mantener"),
+    db: Session = Depends(get_db)
+):
+    """
+    Elimina reportes antiguos de un dominio, manteniendo solo los N más recientes.
+    Útil para gestionar el tamaño de la base de datos.
+    """
+    deleted_count = StorageService.delete_old_reports(db, domain_name, keep_latest)
+    
+    return {
+        "domain": domain_name,
+        "deleted": deleted_count,
+        "kept": keep_latest,
+        "message": f"Se eliminaron {deleted_count} reportes antiguos"
+    }
+
+
+@router.get("/statistics", summary="Estadísticas generales")
+async def get_statistics(db: Session = Depends(get_db)):
+    """
+    Obtiene estadísticas generales de la base de datos.
+    Incluye contadores, tasas de éxito y dominios más rastreados.
+    """
+    stats = StorageService.get_statistics(db)
+    return stats
+
+
+@router.get("/compare/{domain_name}", summary="Comparar reportes de un dominio")
+async def compare_reports(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    report_ids: str = Query(..., description="IDs de reportes separados por coma (ej: 1,5,10)"),
+    metrics: str = Query(
+        "seo_word_count,tech_requests_count,tech_total_bytes,pages_crawled",
+        description="Métricas a comparar separadas por coma"
+    ),
+    db: Session = Depends(get_db)
+):
+    """
+    Compara métricas específicas entre diferentes reportes del mismo dominio.
+    Útil para ver la evolución del sitio en el tiempo.
+    """
+    # Parsear IDs
+    try:
+        ids = [int(id.strip()) for id in report_ids.split(",")]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="IDs de reportes inválidos")
+    
+    # Parsear métricas
+    metric_list = [m.strip() for m in metrics.split(",")]
+    
+    # Obtener reportes
+    domain = StorageService.get_domain_by_name(db, domain_name)
+    if not domain:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+    
+    comparison = []
+    for report_id in ids:
+        report = StorageService.get_report_by_id(db, report_id)
+        if not report or report.domain_id != domain.id:
+            continue
+        
+        report_data = {
+            "report_id": report.id,
+            "scraped_at": report.scraped_at.isoformat() if report.scraped_at else None,
+            "metrics": {}
+        }
+        
+        for metric in metric_list:
+            if hasattr(report, metric):
+                report_data["metrics"][metric] = getattr(report, metric)
+        
+        comparison.append(report_data)
+    
+    return {
+        "domain": domain_name,
+        "reports_compared": len(comparison),
+        "metrics": metric_list,
+        "comparison": comparison
+    }
