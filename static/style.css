@@ -123,3 +123,122 @@ code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px;
   gap: 10px;
   margin-top: 6px;
 }
+
+/* Card Components */
+.card-header {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.card-header h4 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Info Grid and Items */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+}
+.info-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.info-value {
+  color: var(--text);
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+.info-value ul {
+  margin: 4px 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+.info-value ul li {
+  color: var(--text);
+  padding: 2px 0;
+}
+
+/* Info Section */
+.info-section {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.info-section:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.info-section h5 {
+  margin: 0 0 12px 0;
+  font-size: 1.05rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Results Header */
+.results-header {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, rgba(34,211,238,0.15), rgba(34,211,238,0.08));
+  border: 1px solid rgba(34,211,238,0.25);
+  border-radius: 12px;
+}
+.results-header p {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+/* Table Styles */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.table thead th {
+  background: rgba(255,255,255,0.06);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+}
+.table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+.table-sm thead th,
+.table-sm tbody td {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+/* Utilities */
+.mt-2 {
+  margin-top: 12px;
+}

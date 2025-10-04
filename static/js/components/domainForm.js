@@ -57,21 +57,43 @@ window.App.initDomainForm = function () {
     : "-";
 
   const seoHtml = `
-    <div class="seo-summary">
+    <div class="results-header">
       <p><strong>${esc(response.domain)}</strong> - Código de estado: <code>${esc(response.status_code)}</code></p>
-      <h4>SEO</h4>
-      <ul>
-        <li><strong>Título:</strong> ${esc(seo.title)}</li>
-        <li><strong>Meta descripción:</strong> ${esc(seo.metaDescription)}</li>
-        <li><strong>Cantidad de H1:</strong> ${esc(seo.h1Count)}</li>
-        <li><strong>Canonical:</strong> ${esc(seo.canonical)}</li>
-        <li><strong>Robots:</strong> ${esc(seo.robots)}</li>
-        <li><strong>Conteo de palabras:</strong> ${esc(seo.wordCount)}</li>
-        <li><strong>Links:</strong> total ${esc(links.total)}, internos ${esc(links.internal)}, externos ${esc(links.external)}, nofollow ${esc(links.nofollow)}</li>
-        <li><strong>Imágenes:</strong> total ${esc(images.total)}, sin alt ${esc(images.withoutAlt)}</li>
-        <li><strong>Imágenes por MIME:</strong> ${mimeList}</li>
-        <li><strong>Imágenes por extensión:</strong> ${extList}</li>
-      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h4>📊 SEO</h4>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">Título:</span> <span class="info-value">${esc(seo.title)}</span></div>
+          <div class="info-item"><span class="info-label">Meta descripción:</span> <span class="info-value">${esc(seo.metaDescription)}</span></div>
+          <div class="info-item"><span class="info-label">Cantidad de H1:</span> <span class="info-value">${esc(seo.h1Count)}</span></div>
+          <div class="info-item"><span class="info-label">Canonical:</span> <span class="info-value">${esc(seo.canonical)}</span></div>
+          <div class="info-item"><span class="info-label">Robots:</span> <span class="info-value">${esc(seo.robots)}</span></div>
+          <div class="info-item"><span class="info-label">Conteo de palabras:</span> <span class="info-value">${esc(seo.wordCount)}</span></div>
+        </div>
+        <div class="info-section">
+          <h5>Enlaces</h5>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Total:</span> <span class="info-value">${esc(links.total)}</span></div>
+            <div class="info-item"><span class="info-label">Internos:</span> <span class="info-value">${esc(links.internal)}</span></div>
+            <div class="info-item"><span class="info-label">Externos:</span> <span class="info-value">${esc(links.external)}</span></div>
+            <div class="info-item"><span class="info-label">Nofollow:</span> <span class="info-value">${esc(links.nofollow)}</span></div>
+          </div>
+        </div>
+        <div class="info-section">
+          <h5>Imágenes</h5>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Total:</span> <span class="info-value">${esc(images.total)}</span></div>
+            <div class="info-item"><span class="info-label">Sin alt:</span> <span class="info-value">${esc(images.withoutAlt)}</span></div>
+          </div>
+          <div class="info-grid mt-2">
+            <div class="info-item"><span class="info-label">Por MIME:</span> <div class="info-value">${mimeList}</div></div>
+            <div class="info-item"><span class="info-label">Por extensión:</span> <div class="info-value">${extList}</div></div>
+          </div>
+        </div>
+      </div>
     </div>`;
 
   // Resumen del sitio (si viene)
@@ -88,19 +110,55 @@ window.App.initDomainForm = function () {
       : "-";
 
     siteHtml = `
-      <h4>Resumen del sitio</h4>
-      <ul>
-        <li><strong>Páginas rastreadas:</strong> ${esc(s.pages_crawled)}</li>
-        <li><strong>Emails:</strong> ${list(s.contacts?.emails)}</li>
-        <li><strong>Teléfonos:</strong> ${list(s.contacts?.phones)}</li>
-        <li><strong>WhatsApp:</strong> ${list(s.contacts?.whatsapp)}</li>
-        <li><strong>Redes:</strong> ${socialsHtml}</li>
-        <li><strong>Formularios detectados:</strong> ${esc(s.forms_found)}</li>
-        <li><strong>Páginas legales:</strong> ${list(s.legal_pages)}</li>
-        <li><strong>Integraciones (analytics):</strong> ${list(s.integrations?.analytics)}</li>
-        <li><strong>Pixels:</strong> ${list(s.integrations?.pixels)}</li>
-        <li><strong>WordPress:</strong> tema=${esc(s.wp?.theme || "-")}, plugins=${list(s.wp?.plugins)}, REST=${esc(s.wp?.rest_api)}</li>
-      </ul>`;
+      <div class="card">
+        <div class="card-header">
+          <h4>🌐 Resumen del Sitio</h4>
+        </div>
+        <div class="card-body">
+          <div class="info-item"><span class="info-label">Páginas rastreadas:</span> <span class="info-value">${esc(s.pages_crawled)}</span></div>
+          
+          <div class="info-section">
+            <h5>Contactos</h5>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Emails:</span> <div class="info-value">${list(s.contacts?.emails)}</div></div>
+              <div class="info-item"><span class="info-label">Teléfonos:</span> <div class="info-value">${list(s.contacts?.phones)}</div></div>
+              <div class="info-item"><span class="info-label">WhatsApp:</span> <div class="info-value">${list(s.contacts?.whatsapp)}</div></div>
+            </div>
+          </div>
+
+          <div class="info-section">
+            <h5>Redes Sociales</h5>
+            <div class="info-value">${socialsHtml}</div>
+          </div>
+
+          <div class="info-section">
+            <h5>Formularios y Legal</h5>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Formularios detectados:</span> <span class="info-value">${esc(s.forms_found)}</span></div>
+              <div class="info-item"><span class="info-label">Páginas legales:</span> <div class="info-value">${list(s.legal_pages)}</div></div>
+            </div>
+          </div>
+
+          <div class="info-section">
+            <h5>Integraciones</h5>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Analytics:</span> <div class="info-value">${list(s.integrations?.analytics)}</div></div>
+              <div class="info-item"><span class="info-label">Pixels:</span> <div class="info-value">${list(s.integrations?.pixels)}</div></div>
+            </div>
+          </div>
+
+          ${s.wp ? `
+          <div class="info-section">
+            <h5>WordPress</h5>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Tema:</span> <span class="info-value">${esc(s.wp.theme || "-")}</span></div>
+              <div class="info-item"><span class="info-label">REST API:</span> <span class="info-value">${esc(s.wp.rest_api)}</span></div>
+              <div class="info-item"><span class="info-label">Plugins:</span> <div class="info-value">${list(s.wp.plugins)}</div></div>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      </div>`;
   }
 
   // Tabla de páginas (si viene)
@@ -115,11 +173,19 @@ window.App.initDomainForm = function () {
         <td>${esc(p.forms_count)}</td>
       </tr>`).join("");
     pagesHtml = `
-      <h4>Muestra de páginas</h4>
-      <table class="table table-sm">
-        <thead><tr><th>URL</th><th>HTTP</th><th>Emails</th><th>Teléfonos</th><th>Forms</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <div class="card">
+        <div class="card-header">
+          <h4>📄 Muestra de Páginas</h4>
+        </div>
+        <div class="card-body">
+          <div style="overflow-x: auto;">
+            <table class="table table-sm">
+              <thead><tr><th>URL</th><th>HTTP</th><th>Emails</th><th>Teléfonos</th><th>Forms</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
   }
 
   // --- Técnicas & Seguridad ---
@@ -143,30 +209,62 @@ window.App.initDomainForm = function () {
     ? `<ul>${Object.entries(reqImgExt).map(([k,v]) => ` <li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`  : "-";
 
   const techHtml = `
-    <h4>Técnicas</h4>
-    <ul>
-      <li><strong>Requests:</strong> ${esc(req.count || 0)} (bytes totales: ${esc(req.total_bytes || 0)})</li>
-      <li><strong>1ros vs 3ros:</strong> ${esc(req.first_party_bytes || 0)} vs ${esc(req.third_party_bytes || 0)} bytes</li>
-      <li><strong>Timing (ms aprox):</strong> TTFB=${esc(timing.ttfb)}, DCL=${esc(timing.dcl)}, Load=${esc(timing.load)}</li>
-    </ul>
-    <div style="overflow:auto">
-      <table class="table table-sm">
-        <thead><tr><th>Tipo</th><th>#</th><th>Bytes</th></tr></thead>
-        <tbody>${byTypeRows || ""}</tbody>
-      </table>
+    <div class="card">
+      <div class="card-header">
+        <h4>⚙️ Información Técnica</h4>
+      </div>
+      <div class="card-body">
+        <div class="info-section">
+          <h5>Requests</h5>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Total de requests:</span> <span class="info-value">${esc(req.count || 0)}</span></div>
+            <div class="info-item"><span class="info-label">Bytes totales:</span> <span class="info-value">${esc(req.total_bytes || 0)}</span></div>
+            <div class="info-item"><span class="info-label">1ros bytes:</span> <span class="info-value">${esc(req.first_party_bytes || 0)}</span></div>
+            <div class="info-item"><span class="info-label">3ros bytes:</span> <span class="info-value">${esc(req.third_party_bytes || 0)}</span></div>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h5>Timing (ms aprox)</h5>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">TTFB:</span> <span class="info-value">${esc(timing.ttfb)}</span></div>
+            <div class="info-item"><span class="info-label">DCL:</span> <span class="info-value">${esc(timing.dcl)}</span></div>
+            <div class="info-item"><span class="info-label">Load:</span> <span class="info-value">${esc(timing.load)}</span></div>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h5>Requests por tipo</h5>
+          <div style="overflow-x: auto;">
+            <table class="table table-sm">
+              <thead><tr><th>Tipo</th><th>#</th><th>Bytes</th></tr></thead>
+              <tbody>${byTypeRows || ""}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h5>Formatos de imágenes (red)</h5>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Por MIME:</span> <div class="info-value">${reqMimeList}</div></div>
+            <div class="info-item"><span class="info-label">Por extensión:</span> <div class="info-value">${reqExtList}</div></div>
+          </div>
+        </div>
+      </div>
     </div>
-    <h5>Formatos de imágenes (red)</h5>
-    <div class="grid">
-      <div><strong>Por MIME</strong>${reqMimeList}</div>
-      <div><strong>Por extensión</strong>${reqExtList}</div>
-    </div>
-    <h4>Security headers</h4>
-    <ul>
-      <li><strong>HSTS:</strong> ${esc(secH.hsts)}</li>
-      <li><strong>CSP:</strong> ${esc(secH.csp)}</li>
-      <li><strong>X-Frame-Options:</strong> ${esc(secH.xfo)}</li>
-      <li><strong>X-Content-Type-Options:</strong> ${esc(secH.xcto)}</li>
-    </ul>`;
+    <div class="card">
+      <div class="card-header">
+        <h4>🔒 Security Headers</h4>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">HSTS:</span> <span class="info-value">${esc(secH.hsts)}</span></div>
+          <div class="info-item"><span class="info-label">CSP:</span> <span class="info-value">${esc(secH.csp)}</span></div>
+          <div class="info-item"><span class="info-label">X-Frame-Options:</span> <span class="info-value">${esc(secH.xfo)}</span></div>
+          <div class="info-item"><span class="info-label">X-Content-Type-Options:</span> <span class="info-value">${esc(secH.xcto)}</span></div>
+        </div>
+      </div>
+    </div>`;
 
   // Render final (una sola vez, sin sobrescribir lo ya agregado)
   $result.html(seoHtml + techHtml + siteHtml + pagesHtml);
