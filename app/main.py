@@ -17,10 +17,11 @@ from app.routes.web import router as web_router
 from app.routes.tools import router as tools_router
 from app.routes.reports import router as reports_router
 from app.routes.comments import router as comments_router
+from app.routes.jobs import router as jobs_router
 
 # Importa configuración de base de datos
 from app.database import init_db
-from app.models import Domain, Report, Comment  # Importar modelos para que SQLAlchemy los registre
+from app.models import Domain, Report, Comment, Job, JobStep  # Importar modelos para que SQLAlchemy los registre
 
 
 @asynccontextmanager
@@ -63,6 +64,7 @@ app.include_router(web_router)
 app.include_router(tools_router)
 app.include_router(reports_router)
 app.include_router(comments_router)  # Nueva ruta de comentarios
+app.include_router(jobs_router)  # Nueva ruta de jobs
 
 # Ruta de salud
 @app.get("/health", tags=["health"])

@@ -6,7 +6,7 @@ window.API = window.API || {};
 /**
  * Base API configuration
  */
-const API_BASE = '';
+const API_BASE = API_BASE || '';
 
 /**
  * Helper function to make API calls
@@ -100,7 +100,7 @@ window.API.reports = {
 window.API.comments = {
   // Create comment
   create: async (contentType, objectId, author, content, parentId = null) => {
-    return fetchAPI('/comments', {
+    return fetchAPI('/api/comments', {
       method: 'POST',
       body: JSON.stringify({
         content_type: contentType,
@@ -114,22 +114,22 @@ window.API.comments = {
 
   // Get comments for entity
   getForEntity: async (contentType, objectId, includeReplies = true, includeInactive = false) => {
-    return fetchAPI(`/comments/entity/${contentType}/${objectId}?include_replies=${includeReplies}&include_inactive=${includeInactive}`);
+    return fetchAPI(`/api/comments/entity/${contentType}/${objectId}?include_replies=${includeReplies}&include_inactive=${includeInactive}`);
   },
 
   // Get comment thread
   getThread: async (commentId, maxDepth = 5) => {
-    return fetchAPI(`/comments/thread/${commentId}?max_depth=${maxDepth}`);
+    return fetchAPI(`/api/comments/thread/${commentId}?max_depth=${maxDepth}`);
   },
 
   // Get comment by ID
   getById: async (commentId) => {
-    return fetchAPI(`/comments/${commentId}`);
+    return fetchAPI(`/api/comments/${commentId}`);
   },
 
   // Update comment
   update: async (commentId, updates) => {
-    return fetchAPI(`/comments/${commentId}`, {
+    return fetchAPI(`/api/comments/${commentId}`, {
       method: 'PUT',
       body: JSON.stringify(updates)
     });
@@ -137,48 +137,48 @@ window.API.comments = {
 
   // Delete comment
   delete: async (commentId, softDelete = true) => {
-    return fetchAPI(`/comments/${commentId}?soft_delete=${softDelete}`, {
+    return fetchAPI(`/api/comments/${commentId}?soft_delete=${softDelete}`, {
       method: 'DELETE'
     });
   },
 
   // Get comments by author
   getByAuthor: async (author, limit = 50, offset = 0) => {
-    return fetchAPI(`/comments/author/${encodeURIComponent(author)}?limit=${limit}&offset=${offset}`);
+    return fetchAPI(`/api/comments/author/${encodeURIComponent(author)}?limit=${limit}&offset=${offset}`);
   },
 
   // Get recent comments
   getRecent: async (limit = 20, contentType = null) => {
     const url = contentType 
-      ? `/comments/recent?limit=${limit}&content_type=${contentType}`
-      : `/comments/recent?limit=${limit}`;
+      ? `/api/comments/recent?limit=${limit}&content_type=${contentType}`
+      : `/api/comments/recent?limit=${limit}`;
     return fetchAPI(url);
   },
 
   // Search comments
   search: async (query, contentType = null, limit = 20) => {
     const url = contentType
-      ? `/comments/search?q=${encodeURIComponent(query)}&content_type=${contentType}&limit=${limit}`
-      : `/comments/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+      ? `/api/comments/search?q=${encodeURIComponent(query)}&content_type=${contentType}&limit=${limit}`
+      : `/api/comments/search?q=${encodeURIComponent(query)}&limit=${limit}`;
     return fetchAPI(url);
   },
 
   // Get statistics
   getStatistics: async (contentType = null) => {
     const url = contentType
-      ? `/comments/statistics?content_type=${contentType}`
-      : '/comments/statistics';
+      ? `/api/comments/statistics?content_type=${contentType}`
+      : '/api/comments/statistics';
     return fetchAPI(url);
   },
 
   // Get domain comments (shortcut)
   forDomain: async (domainId, includeReplies = true) => {
-    return fetchAPI(`/comments/domain/${domainId}?include_replies=${includeReplies}`);
+    return fetchAPI(`/api/comments/domain/${domainId}?include_replies=${includeReplies}`);
   },
 
   // Get report comments (shortcut)
   forReport: async (reportId, includeReplies = true) => {
-    return fetchAPI(`/comments/report/${reportId}?include_replies=${includeReplies}`);
+    return fetchAPI(`/api/comments/report/${reportId}?include_replies=${includeReplies}`);
   }
 };
 
@@ -193,11 +193,68 @@ window.API.statistics = {
 };
 
 /**
- * Tools API (existing scraper)
+ * Jobs API
  */
-window.API.tools = {
-  // Check/scrape domain
-  checkDomain: async (domain) => {
-    return fetchAPI(`/check-domain?domain=${encodeURIComponent(domain)}`);
+window.API.jobs = {
+  // Get jobs with optional filters
+  list: async (status = null, jobType = null, limit = 50, offset = 0) => {
+    const params = new URLSearchParams({ limit, offset });
+    if (status) params.append('status', status);
+    if (jobType) params.append('job_type', jobType);
+    return fetchAPI(`/api/jobs?${params}`);
+  },
+
+  // Get job by ID
+  getById: async (jobId) => {
+    return fetchAPI(`/api/jobs/${jobId}`);
+  },
+
+  // Get job statistics summary
+  getStatsSummary: async () => {
+    return fetchAPI('/api/jobs/stats/summary');
+  },
+
+  // Create batch scraping job
+  createBatchScraping: async (domains, name = null, description = null, createdBy = 'user') => {
+    return fetchAPI('/api/jobs/batch-scraping', {
+      method: 'POST',
+      body: JSON.stringify({
+        domains,
+        name,
+        description,
+        created_by: createdBy
+      })
+    });
+  },
+
+  // Cancel job
+  cancel: async (jobId) => {
+    return fetchAPI(`/api/jobs/${jobId}/cancel`, {
+      method: 'POST'
+    });
+  },
+
+  // Delete job
+  delete: async (jobId) => {
+    return fetchAPI(`/api/jobs/${jobId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Retry failed job
+  retry: async (jobId) => {
+    return fetchAPI(`/api/jobs/${jobId}/retry`, {
+      method: 'POST'
+    });
+  },
+
+  // Get job progress
+  getProgress: async (jobId) => {
+    return fetchAPI(`/api/jobs/${jobId}/progress`);
+  },
+
+  // Get job logs
+  getLogs: async (jobId, limit = 100) => {
+    return fetchAPI(`/api/jobs/${jobId}/logs?limit=${limit}`);
   }
 };

@@ -41,3 +41,17 @@ async def report_detail_page(request: Request, report_id: int):
         "pages/report_detail.html",
         {"request": request, "title": f"Reporte #{report_id} | WP Scrap", "report_id": report_id},
     )
+
+@router.get("/jobs", response_class=HTMLResponse, tags=["web"])
+async def jobs_list_page(request: Request):
+    return templates.TemplateResponse(
+        "pages/jobs.html",
+        {"request": request, "title": "Jobs | WP Scrap"},
+    )
+
+@router.get("/job/{job_id}", response_class=HTMLResponse, tags=["web"])
+async def job_detail_page(request: Request, job_id: int):
+    return templates.TemplateResponse(
+        "pages/job_detail.html",
+        {"request": request, "title": f"Job #{job_id} | WP Scrap", "job_id": job_id},
+    )

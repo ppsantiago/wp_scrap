@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 import logging
 
-router = APIRouter(prefix="/comments", tags=["comments"])
+router = APIRouter(prefix="/api/comments", tags=["comments"])
 logger = logging.getLogger(__name__)
 
 
@@ -220,6 +220,59 @@ async def get_report_comments(
         include_replies=include_replies,
         db=db
     )
+
+
+@router.get("/job/{job_id}", summary="Comentarios de un job")
+async def get_job_comments(
+    job_id: int = Path(..., description="ID del job"),
+    include_replies: bool = Query(True, description="Incluir respuestas"),
+    db: Session = Depends(get_db)
+):
+    """Comentarios asociados a un job específico"""
+    comments = CommentService.get_comments_for_entity(
+        db=db,
+        content_type="job",
+        object_id=job_id,
+        include_replies=include_replies,
+        include_inactive=False
+    )
+    
+    return {
+        "success": True,
+        "content_type": "job",
+        "object_id": job_id,
+        "count": len(comments),
+        "comments": [comment.to_dict() for comment in comments]
+    }
+
+
+@router.post("/job", summary="Crear comentario en un job")
+async def create_job_comment(
+    object_id: int = Body(..., description="ID del job"),
+    author: str = Body(..., description="Autor del comentario"),
+    content: str = Body(..., description="Contenido del comentario"),
+    parent_id: Optional[int] = Body(None, description="ID del comentario padre (para respuestas)"),
+    db: Session = Depends(get_db)
+):
+    """Crea un comentario asociado a un job"""
+    try:
+        comment = CommentService.create_comment(
+            db=db,
+            content_type="job",
+            object_id=object_id,
+            author=author,
+            content=content,
+            parent_id=parent_id
+        )
+        
+        return {
+            "success": True,
+            "message": "Comentario creado exitosamente",
+            "comment": comment.to_dict()
+        }
+    except Exception as e:
+        logger.error(f"Error creando comentario de job: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ============================================================================

@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Breadcrumb -->
+    <nav class="mb-6">
+        <ol class="flex items-center space-x-2 text-sm text-gray-600">
+            <li><a href="/jobs" class="hover:text-blue-600">Jobs</a></li>
+            <li><span class="mx-2">/</span></li>
+            <li class="text-gray-900 font-medium">Job #{{ job_id }}</li>
+        </ol>
+    </nav>
+
+    <!-- Loading state -->
+    <div id="loadingState" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p class="mt-4 text-gray-600">Cargando job...</p>
+    </div>
+
+    <!-- Content container -->
+    <div id="contentContainer" class="hidden">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h1 id="jobName" class="text-3xl font-bold text-gray-900 mb-2"></h1>
+                    <p id="jobDescription" class="text-gray-600"></p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="cancelJobBtn" class="hidden px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                        Cancelar Job
+                    </button>
+                    <button id="refreshBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Actualizar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status badge -->
+            <div class="mb-4">
+                <span id="statusBadge" class="px-4 py-2 rounded-full text-sm font-medium"></span>
+            </div>
+
+            <!-- Barra de progreso -->
+            <div class="mb-6">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span class="font-medium">Progreso General</span>
+                    <span id="progressText" class="font-medium"></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Métricas -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div id="totalSteps" class="text-3xl font-bold text-gray-900">0</div>
+                    <div class="text-sm text-gray-600">Total Pasos</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                    <div id="completedSteps" class="text-3xl font-bold text-green-600">0</div>
+                    <div class="text-sm text-gray-600">Completados</div>
+                </div>
+                <div class="text-center p-4 bg-red-50 rounded-lg">
+                    <div id="failedSteps" class="text-3xl font-bold text-red-600">0</div>
+                    <div class="text-sm text-gray-600">Fallidos</div>
+                </div>
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                    <div id="pendingSteps" class="text-3xl font-bold text-blue-600">0</div>
+                    <div class="text-sm text-gray-600">Pendientes</div>
+                </div>
+            </div>
+
+            <!-- Metadata -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-600">Tipo:</span>
+                    <span id="jobType" class="font-medium text-gray-900 ml-2"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Creado:</span>
+                    <span id="createdAt" class="font-medium text-gray-900 ml-2"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">ID:</span>
+                    <span class="font-medium text-gray-900 ml-2">#{{ job_id }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="flex space-x-8">
+                    <button class="tab-btn py-4 px-1 border-b-2 font-medium text-sm active" data-tab="steps">
+                        Pasos
+                    </button>
+                    <button class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="comments">
+                        Comentarios
+                        <span id="commentCount" class="ml-2 bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full text-xs">0</span>
+                    </button>
+                    <button class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="config">
+                        Configuración
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="stepsTab" class="tab-content">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Pasos del Job</h2>
+                    <div id="stepsContainer" class="space-y-3">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="commentsTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Comentarios</h2>
+                    
+                    <!-- Formulario para nuevo comentario -->
+                    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                        <form id="commentForm">
+                            <div class="mb-3">
+                                <input type="text" id="commentAuthor" placeholder="Tu nombre" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" required>
+                            </div>
+                            <div class="mb-3">
+                                <textarea id="commentContent" rows="3" placeholder="Escribe un comentario..." class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" required></textarea>
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                                Publicar Comentario
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Lista de comentarios -->
+                    <div id="commentsContainer" class="space-y-4">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="configTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Configuración del Job</h2>
+                    <pre id="configContent" class="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm font-mono"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const jobId = {{ job_id }};
+let job = null;
+let refreshInterval = null;
+
+// Cargar job
+async function loadJob() {
+    try {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            job = data.job;
+            renderJob();
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('contentContainer').classList.remove('hidden');
+        } else {
+            alert('Error cargando job');
+        }
+    } catch (error) {
+        console.error('Error cargando job:', error);
+        alert('Error cargando job');
+    }
+}
+
+// Renderizar job
+function renderJob() {
+    // Header
+    document.getElementById('jobName').textContent = job.name;
+    document.getElementById('jobDescription').textContent = job.description || 'Sin descripción';
+    
+    // Status badge
+    const statusColors = {
+        pending: 'bg-yellow-100 text-yellow-800',
+        running: 'bg-blue-100 text-blue-800',
+        completed: 'bg-green-100 text-green-800',
+        failed: 'bg-red-100 text-red-800',
+        cancelled: 'bg-gray-100 text-gray-800'
+    };
+    const statusBadge = document.getElementById('statusBadge');
+    statusBadge.textContent = job.status.toUpperCase();
+    statusBadge.className = `px-4 py-2 rounded-full text-sm font-medium ${statusColors[job.status]}`;
+    
+    // Mostrar botón cancelar si está running o pending
+    if (job.status === 'running' || job.status === 'pending') {
+        document.getElementById('cancelJobBtn').classList.remove('hidden');
+    } else {
+        document.getElementById('cancelJobBtn').classList.add('hidden');
+    }
+    
+    // Progreso
+    document.getElementById('progressText').textContent = `${job.progress_percentage}% (${job.completed_steps}/${job.total_steps})`;
+    document.getElementById('progressBar').style.width = `${job.progress_percentage}%`;
+    
+    // Métricas
+    document.getElementById('totalSteps').textContent = job.total_steps;
+    document.getElementById('completedSteps').textContent = job.completed_steps;
+    document.getElementById('failedSteps').textContent = job.failed_steps;
+    const pendingSteps = job.total_steps - job.completed_steps - job.failed_steps;
+    document.getElementById('pendingSteps').textContent = pendingSteps;
+    
+    // Metadata
+    document.getElementById('jobType').textContent = job.job_type;
+    document.getElementById('createdAt').textContent = new Date(job.created_at).toLocaleString();
+    
+    // Pasos
+    renderSteps();
+    
+    // Configuración
+    document.getElementById('configContent').textContent = JSON.stringify(job.config, null, 2);
+}
+
+// Renderizar pasos
+function renderSteps() {
+    const container = document.getElementById('stepsContainer');
+    
+    if (!job.steps || job.steps.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No hay pasos</p>';
+        return;
+    }
+    
+    const statusIcons = {
+        pending: '<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+        running: '<svg class="w-5 h-5 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
+        completed: '<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+        failed: '<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+    };
+    
+    container.innerHTML = job.steps.map(step => {
+        const icon = statusIcons[step.status] || statusIcons.pending;
+        const reportLink = step.result_data?.report_id ? 
+            `<a href="/report/${step.result_data.report_id}" class="text-blue-600 hover:underline ml-2">Ver Reporte</a>` : '';
+        
+        return `
+            <div class="flex items-start gap-3 p-4 rounded-lg border ${step.status === 'failed' ? 'border-red-200 bg-red-50' : 'border-gray-200'}">
+                <div class="flex-shrink-0 mt-1">${icon}</div>
+                <div class="flex-1">
+                    <div class="font-medium text-gray-900">
+                        Paso ${step.step_number}: ${step.name}
+                    </div>
+                    ${step.description ? `<p class="text-sm text-gray-600 mt-1">${step.description}</p>` : ''}
+                    ${step.error_message ? `<p class="text-sm text-red-600 mt-2">Error: ${step.error_message}</p>` : ''}
+                    ${step.completed_at ? `<p class="text-xs text-gray-500 mt-1">Completado: ${new Date(step.completed_at).toLocaleString()}${reportLink}</p>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Cargar comentarios
+async function loadComments() {
+    try {
+        const response = await fetch(`/api/comments/job/${jobId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderComments(data.comments);
+            document.getElementById('commentCount').textContent = data.count;
+        }
+    } catch (error) {
+        console.error('Error cargando comentarios:', error);
+    }
+}
+
+// Renderizar comentarios
+function renderComments(comments) {
+    const container = document.getElementById('commentsContainer');
+    
+    if (comments.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No hay comentarios</p>';
+        return;
+    }
+    
+    container.innerHTML = comments.map(comment => `
+        <div class="border border-gray-200 rounded-lg p-4">
+            <div class="flex items-start justify-between mb-2">
+                <span class="font-medium text-gray-900">${comment.author}</span>
+                <span class="text-xs text-gray-500">${new Date(comment.created_at).toLocaleString()}</span>
+            </div>
+            <p class="text-gray-700">${comment.content}</p>
+        </div>
+    `).join('');
+}
+
+// Publicar comentario
+document.getElementById('commentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const author = document.getElementById('commentAuthor').value;
+    const content = document.getElementById('commentContent').value;
+    
+    try {
+        const response = await fetch('/api/comments/job', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                object_id: jobId,
+                author,
+                content
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('commentForm').reset();
+            loadComments();
+        } else {
+            alert('Error publicando comentario');
+        }
+    } catch (error) {
+        console.error('Error publicando comentario:', error);
+        alert('Error publicando comentario');
+    }
+});
+
+// Cancelar job
+document.getElementById('cancelJobBtn').addEventListener('click', async () => {
+    if (!confirm('¿Estás seguro de que quieres cancelar este job?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            loadJob();
+        } else {
+            alert('Error cancelando job');
+        }
+    } catch (error) {
+        console.error('Error cancelando job:', error);
+        alert('Error cancelando job');
+    }
+});
+
+// Refresh
+document.getElementById('refreshBtn').addEventListener('click', () => {
+    loadJob();
+    loadComments();
+});
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tabName = btn.dataset.tab;
+        
+        // Update buttons
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('border-blue-600', 'text-blue-600', 'active');
+            b.classList.add('border-transparent', 'text-gray-500');
+        });
+        btn.classList.add('border-blue-600', 'text-blue-600', 'active');
+        btn.classList.remove('border-transparent', 'text-gray-500');
+        
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        document.getElementById(`${tabName}Tab`).classList.remove('hidden');
+        
+        // Cargar comentarios si es necesario
+        if (tabName === 'comments') {
+            loadComments();
+        }
+    });
+});
+
+// Auto-refresh si está en ejecución
+function startAutoRefresh() {
+    refreshInterval = setInterval(() => {
+        if (job && (job.status === 'running' || job.status === 'pending')) {
+            loadJob();
+        }
+    }, 3000);
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', () => {
+    loadJob();
+    startAutoRefresh();
+});
+
+// Limpiar al salir
+window.addEventListener('beforeunload', () => {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+});
+</script>
+
+<style>
+.tab-btn.active {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+.tab-btn:not(.active) {
+    border-color: transparent;
+    color: #6b7280;
+}
+.tab-btn:not(.active):hover {
+    color: #374151;
+    border-color: #d1d5db;
+}
+</style>
+{% endblock %}
