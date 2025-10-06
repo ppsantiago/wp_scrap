@@ -4,11 +4,6 @@
 window.API = window.API || {};
 
 /**
- * Base API configuration
- */
-const API_BASE = API_BASE || '';
-
-/**
  * Helper function to make API calls
  */
 async function fetchAPI(url, options = {}) {
