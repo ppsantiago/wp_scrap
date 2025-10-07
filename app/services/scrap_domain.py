@@ -1,6 +1,10 @@
 from typing import Dict, Any, List, Set
 import re
 from urllib.parse import urlparse, urljoin
+
+import phonenumbers
+from phonenumbers import PhoneNumberFormat
+from phonenumbers.phonenumberutil import NumberParseException
 from playwright.async_api import async_playwright
 
 # ---- Tipificación simple por tipo de recurso ----
@@ -79,8 +83,37 @@ class NetworkCollector:
         }
 
 EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", re.I)
-PHONE_RE = re.compile(r"(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,5}[\s.-]?\d{3,5}", re.I)
+PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{6,}\d)", re.I)
+MIN_PHONE_DIGITS = 8
+MAX_PHONE_DIGITS = 15
+DEFAULT_PHONE_REGION = "AR"
 SOCIAL_HOSTS = {"facebook.com":"facebook","instagram.com":"instagram","x.com":"x","twitter.com":"x","linkedin.com":"linkedin","youtube.com":"youtube","tiktok.com":"tiktok","wa.me":"whatsapp","api.whatsapp.com":"whatsapp"}
+
+def _normalize_phone(raw: str, default_region: str = DEFAULT_PHONE_REGION) -> tuple[str, str] | None:
+    if not raw:
+        return None
+
+    digits_only = re.sub(r"\D", "", raw)
+    if len(digits_only) < MIN_PHONE_DIGITS or len(digits_only) > MAX_PHONE_DIGITS:
+        return None
+    if digits_only.count("0") == len(digits_only):
+        return None
+
+    candidate = raw.strip()
+    try:
+        number = phonenumbers.parse(candidate, default_region)
+    except NumberParseException:
+        try:
+            number = phonenumbers.parse(f"+{digits_only}", None)
+        except NumberParseException:
+            return None
+
+    if not phonenumbers.is_possible_number(number):
+        return None
+
+    e164 = phonenumbers.format_number(number, PhoneNumberFormat.E164)
+    international = phonenumbers.format_number(number, PhoneNumberFormat.INTERNATIONAL)
+    return e164, international
 
 def _same_site(u:str, base:str)->bool:
     up, bp = urlparse(u), urlparse(base)
@@ -356,7 +389,8 @@ async def _crawl_site(context, base_url:str, seeds:List[str], max_pages:int, tim
     visited: Set[str] = set()
     queue: List[str] = [u for u in seeds if _same_site(u, base_url)]
     pages_data: List[Dict[str,Any]] = []
-    contact_emails, phones, whatsapps = set(), set(), set()
+    contact_emails, whatsapps = set(), set()
+    phones_by_e164: dict[str, str] = {}
     socials: dict[str,set] = {k:set() for k in ["facebook","instagram","x","linkedin","youtube","tiktok","whatsapp"]}
     legal_pages, forms, analytics, pixels = set(), [], set(), set()
     wp_signals = {"theme": None, "plugins": set(), "rest_api": False}
@@ -378,7 +412,15 @@ async def _crawl_site(context, base_url:str, seeds:List[str], max_pages:int, tim
 
             # emails/phones/whatsapp (regex)
             for e in EMAIL_RE.findall(text): contact_emails.add(e.lower())
-            for ph in PHONE_RE.findall(text): phones.add(ph.strip())
+            page_phone_matches = set(PHONE_RE.findall(text))
+            page_normalized_phones: set[str] = set()
+            for ph in page_phone_matches:
+                normalized = _normalize_phone(ph)
+                if not normalized:
+                    continue
+                e164, display = normalized
+                phones_by_e164.setdefault(e164, display)
+                page_normalized_phones.add(display)
             # whatsapp por enlaces
             for a in await p.locator("a[href]").evaluate_all("els => els.map(e => e.href)"):
                 if "wa.me" in a or "api.whatsapp.com" in a: whatsapps.add(a)
@@ -439,7 +481,7 @@ async def _crawl_site(context, base_url:str, seeds:List[str], max_pages:int, tim
                 "url": url,
                 "status": resp.status,
                 "emails_found": list({e for e in EMAIL_RE.findall(text)}),
-                "phones_found": list({ph for ph in PHONE_RE.findall(text)}),
+                "phones_found": sorted(page_normalized_phones),
                 "jsonld_raw": ld_json[:5],  # limitar muestra
                 "forms_count": len(page_forms) if page_forms else 0
             })
@@ -453,7 +495,7 @@ async def _crawl_site(context, base_url:str, seeds:List[str], max_pages:int, tim
         "pages_crawled": len(visited),
         "contacts": {
             "emails": sorted(contact_emails),
-            "phones": sorted(phones),
+            "phones": sorted(phones_by_e164.values()),
             "whatsapp": sorted(whatsapps)
         },
         "socials": {k: sorted(v) for k, v in socials.items() if v},
