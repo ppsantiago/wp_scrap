@@ -818,6 +818,188 @@ textarea {
   color: var(--muted);
 }
 
+.ia-history {
+  margin-top: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 16px;
+}
+
+.ia-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ia-history__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.ia-history__item:hover {
+  border-color: rgba(34, 211, 238, 0.25);
+  transform: translateY(-1px);
+}
+
+.ia-history__item.is-active {
+  border-color: rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.ia-history__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ia-history__type {
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ia-history__timestamp {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.ia-history__loading,
+.ia-history__error,
+.ia-history__empty {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+}
+
+.ia-history__error {
+  color: #fca5a5;
+}
+
+.ia-save {
+  margin-top: 24px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.card--embedded {
+  box-shadow: none;
+  margin-top: 20px;
+}
+
+.ia-save__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.ia-save__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ia-save__summary:hover,
+.ia-save__summary:focus {
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.ia-save__summary:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.3);
+}
+
+.ia-save__summary-label {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.ia-save__summary-icon {
+  transition: transform 0.2s ease;
+}
+
+.ia-save[open] .ia-save__summary-icon {
+  transform: rotate(-180deg);
+}
+
+.ia-save__content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.ia-save__title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+
+.ia-save__subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.ia-save__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ia-save__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ia-save__row label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ia-save__row textarea,
+.ia-save__row input,
+.ia-save__row select {
+  width: 100%;
+}
+
+.ia-save__help {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.ia-save__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -825,4 +1007,8 @@ textarea {
   to {
     transform: rotate(360deg);
   }
+}
+
+.card-header h2{
+  margin-bottom: 1.5rem !important;
 }

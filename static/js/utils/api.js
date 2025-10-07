@@ -121,6 +121,24 @@ window.API.reports = {
     return fetchAPI(`/reports/report/${reportId}/generation-history?limit=${limit}`);
   },
 
+  // List persisted AI reports
+  listGenerated: async (reportId, limit = 20) => {
+    return fetchAPI(`/reports/report/${reportId}/generated?limit=${limit}`);
+  },
+
+  // Get persisted AI report by type
+  getGenerated: async (reportId, type) => {
+    return fetchAPI(`/reports/report/${reportId}/generated/${encodeURIComponent(type)}`);
+  },
+
+  // Save persisted AI report manually
+  saveGenerated: async (reportId, payload) => {
+    return fetchAPI(`/reports/report/${reportId}/generated`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
   // List AI prompts
   listPrompts: async () => {
     return fetchAPI('/reports/settings/prompts');

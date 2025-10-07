@@ -59,6 +59,46 @@
   <div id="report-ia-container">
     <!-- IA will be loaded here by JS -->
   </div>
+  <div id="report-ia-history" class="ia-history">
+    <!-- IA history will be injected by JS -->
+  </div>
+  <details id="report-ia-save" class="ia-save card card--embedded" data-ia-save>
+    <summary class="ia-save__summary">
+      <span class="ia-save__summary-label">Guardar versión IA</span>
+      <span class="ia-save__summary-icon" aria-hidden="true">▼</span>
+    </summary>
+    <div class="ia-save__content" data-ia-save-content>
+      <p class="ia-save__subtitle">Completa los campos y guarda la versión actual o una edición manual.</p>
+      <div class="ia-save__form">
+        <div class="ia-save__row">
+          <label for="ia-save-type">Tipo de reporte</label>
+          <select id="ia-save-type" class="form-control">
+            <option value="technical">Técnico</option>
+            <option value="commercial">Comercial</option>
+            <option value="deliverable">Entregable</option>
+          </select>
+        </div>
+        <div class="ia-save__row">
+          <label for="ia-save-markdown">Markdown</label>
+          <textarea id="ia-save-markdown" rows="8" placeholder="Pega o edita el Markdown a guardar..."></textarea>
+          <small class="ia-save__help">Si generaste contenido, se cargará automáticamente aquí.</small>
+        </div>
+        <div class="ia-save__row">
+          <label for="ia-save-tags">Tags (separados por coma)</label>
+          <input id="ia-save-tags" type="text" placeholder="ej: resumen,cta,prioridad" />
+        </div>
+        <div class="ia-save__row">
+          <label for="ia-save-metadata">Metadata (JSON)</label>
+          <textarea id="ia-save-metadata" rows="4" placeholder="{ &quot;modelo&quot;: &quot;gpt-4&quot;, &quot;latencia_ms&quot;: 1200 }"></textarea>
+          <small class="ia-save__help">Se validará que el contenido sea JSON válido antes de guardar.</small>
+        </div>
+      </div>
+      <div class="ia-save__actions">
+        <button type="button" class="btn btn-secondary" id="ia-save-reset">Limpiar campos</button>
+        <button type="button" class="btn btn-primary" id="ia-save-submit">Guardar versión</button>
+      </div>
+    </div>
+  </details>
 </div>
 
 <!-- Comments Section -->

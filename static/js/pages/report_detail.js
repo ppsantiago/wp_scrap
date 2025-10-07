@@ -31,12 +31,15 @@ let iaState = {
   isLoading: false,
   type: null,
   controller: null,
+  history: [],
+  lastResult: null,
 };
 
 window.App.initReportDetail = async function(id) {
   reportId = id;
   await Promise.all([loadReportData(), loadTrustedContactSection()]);
   initIaReportButtons();
+  await loadIaHistory();
 };
 
 /**
@@ -99,9 +102,15 @@ function createForceRefreshToggle() {
   return wrapper;
 }
 
+function isMarkedReady() {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.marked === 'function') return true;
+  if (window.marked && typeof window.marked.parse === 'function') return true;
+  return false;
+}
+
 function ensureMarkdownRenderer() {
-  const hasMarked = typeof window.marked === 'function';
-  if (hasMarked) return;
+  if (isMarkedReady()) return;
 
   if (!document.getElementById('marked-js')) {
     const script = document.createElement('script');
@@ -141,7 +150,10 @@ async function handleIaGeneration(type, config, container, button) {
     });
 
     renderIaMarkdown(container, result);
+    iaState.lastResult = result;
     window.App?.notifications?.success?.('Reporte IA generado correctamente.');
+    populateIaSaveForm(result);
+    await loadIaHistory();
   } catch (error) {
     console.error('Error generating AI report:', error);
     container.innerHTML = renderIaError(error, config, existingContent);
@@ -185,8 +197,16 @@ function renderIaMarkdown(container, result) {
   }
 
   let htmlContent = markdown;
-  if (typeof window.marked === 'function') {
-    htmlContent = window.marked.parse(markdown, { breaks: true, gfm: true });
+  if (isMarkedReady()) {
+    const parseFn = typeof window.marked?.parse === 'function'
+      ? window.marked.parse.bind(window.marked)
+      : window.marked;
+    try {
+      htmlContent = parseFn(markdown, { breaks: true, gfm: true });
+    } catch (error) {
+      console.warn('No se pudo parsear Markdown con marked:', error);
+      htmlContent = markdown;
+    }
   }
 
   container.innerHTML = `
@@ -206,6 +226,9 @@ function renderIaMarkdown(container, result) {
   `;
 
   bindIaContentActions(container, markdown);
+  highlightHistoryType(result?.type);
+  iaState.lastResult = result;
+  populateIaSaveForm(result);
 }
 
 function renderIaError(error, config, fallbackContent) {
@@ -268,6 +291,103 @@ function sanitize(text) {
   return text.replace(/[&<>]/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[s] || s));
 }
 
+async function loadIaHistory() {
+  const container = document.getElementById('report-ia-history');
+  if (!container || !reportId) {
+    return;
+  }
+
+  container.innerHTML = '<div class="ia-history__loading">Cargando historial IA...</div>';
+
+  try {
+    const response = await window.API.reports.listGenerated(reportId, 20);
+    iaState.history = Array.isArray(response?.items) ? response.items : [];
+    renderIaHistory(container, iaState.history);
+  } catch (error) {
+    console.error('Error loading IA history:', error);
+    container.innerHTML = '<div class="ia-history__error">No se pudo cargar el historial IA.</div>';
+  }
+}
+
+function renderIaHistory(container, history) {
+  if (!history || !history.length) {
+    container.innerHTML = '<div class="ia-history__empty">Aún no hay reportes IA guardados.</div>';
+    return;
+  }
+
+  const itemsHtml = history
+    .map((item) => {
+      const updatedAt = formatTimestamp(item?.updated_at || item?.created_at);
+      const typeLabel = IA_REPORT_TYPES[item.type]?.label || item.type;
+      return `
+        <div class="ia-history__item" data-ia-history-item="${sanitize(item.type)}">
+          <div class="ia-history__meta">
+            <span class="ia-history__type">${sanitize(typeLabel)}</span>
+            ${updatedAt ? `<span class="ia-history__timestamp">${updatedAt}</span>` : ''}
+          </div>
+          <div class="ia-history__actions">
+            <button type="button" class="btn btn-tertiary" data-ia-load-history data-ia-history-type="${sanitize(item.type)}">Ver versión guardada</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  container.innerHTML = `<div class="ia-history__list">${itemsHtml}</div>`;
+  highlightHistoryType();
+}
+
+function highlightHistoryType(type = null) {
+  const container = document.getElementById('report-ia-history');
+  if (!container) return;
+  const activeType = type || iaState.type;
+  container.querySelectorAll('[data-ia-history-item]').forEach((item) => {
+    const matches = activeType && item.dataset.iaHistoryItem === activeType;
+    item.classList.toggle('is-active', Boolean(matches));
+  });
+}
+
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleString();
+}
+
+async function handleIaHistoryLoad(reportType, triggerButton) {
+  if (!reportType || !reportId || iaState.isLoading) {
+    return;
+  }
+
+  const container = document.getElementById('report-ia-container');
+  if (!container) return;
+
+  const config = IA_REPORT_TYPES[reportType] || { icon: '📝', label: `Reporte ${reportType}` };
+  const previousContent = container.innerHTML;
+
+  iaState.isLoading = true;
+  iaState.type = reportType;
+  container.innerHTML = renderIaLoading(config, false);
+  if (triggerButton) triggerButton.disabled = true;
+
+  try {
+    const data = await window.API.reports.getGenerated(reportId, reportType);
+    renderIaMarkdown(container, { ...data, type: reportType, cached: true });
+    window.App?.notifications?.info?.('Versión IA cargada desde historial.');
+  } catch (error) {
+    console.error('Error loading stored IA report:', error);
+    container.innerHTML = renderIaError(error, config, previousContent);
+    window.App?.notifications?.error?.('No se pudo cargar la versión guardada.');
+  } finally {
+    iaState.isLoading = false;
+    iaState.type = null;
+    if (triggerButton) triggerButton.disabled = false;
+    highlightHistoryType();
+  }
+}
+
 document.addEventListener('click', (event) => {
   const retryBtn = event.target.closest('[data-ia-retry]');
   if (retryBtn && iaState.type) {
@@ -298,7 +418,148 @@ document.addEventListener('click', (event) => {
       }
     }
   }
+
+  const historyBtn = event.target.closest('[data-ia-load-history]');
+  if (historyBtn) {
+    const type = historyBtn.dataset.iaHistoryType;
+    handleIaHistoryLoad(type, historyBtn);
+  }
+
+  const saveBtn = event.target.closest('#ia-save-submit');
+  if (saveBtn) {
+    handleIaSaveSubmit(saveBtn);
+  }
+
+  const resetBtn = event.target.closest('#ia-save-reset');
+  if (resetBtn) {
+    resetIaSaveForm();
+  }
 });
+
+function populateIaSaveForm(result) {
+  if (!result) {
+    return;
+  }
+
+  const typeSelect = document.getElementById('ia-save-type');
+  const markdownField = document.getElementById('ia-save-markdown');
+  const tagsField = document.getElementById('ia-save-tags');
+  const metadataField = document.getElementById('ia-save-metadata');
+
+  if (typeSelect && result.type) {
+    typeSelect.value = result.type;
+  }
+  if (markdownField && result.markdown) {
+    markdownField.value = result.markdown;
+  }
+
+  if (tagsField) {
+    const tags = Array.isArray(result.tags) ? result.tags.join(',') : '';
+    tagsField.value = tags;
+  }
+
+  if (metadataField) {
+    try {
+      const metadata = result.metadata || {};
+      metadataField.value = JSON.stringify(metadata, null, 2);
+    } catch (error) {
+      // ignore serialization errors
+    }
+  }
+}
+
+function resetIaSaveForm() {
+  const container = document.querySelector('[data-ia-save-content]');
+  if (!container) return;
+  const fields = container.querySelectorAll('input, textarea');
+  fields.forEach((field) => {
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+      field.value = '';
+    }
+  });
+  const typeSelect = document.getElementById('ia-save-type');
+  if (typeSelect) {
+    typeSelect.value = 'technical';
+  }
+}
+
+document.addEventListener('toggle', (event) => {
+  const details = event.target;
+  if (!(details instanceof HTMLDetailsElement)) {
+    return;
+  }
+
+  if (!details.matches('[data-ia-save]')) {
+    return;
+  }
+
+  if (details.open) {
+    populateIaSaveForm(iaState.lastResult);
+  }
+});
+
+async function handleIaSaveSubmit(button) {
+  if (!reportId) {
+    return;
+  }
+
+  const typeSelect = document.getElementById('ia-save-type');
+  const markdownField = document.getElementById('ia-save-markdown');
+  const tagsField = document.getElementById('ia-save-tags');
+  const metadataField = document.getElementById('ia-save-metadata');
+
+  if (!markdownField || !markdownField.value.trim()) {
+    window.App?.notifications?.error?.('El markdown es obligatorio para guardar.');
+    markdownField?.focus();
+    return;
+  }
+
+  let tags = [];
+  if (tagsField && tagsField.value.trim()) {
+    tags = tagsField.value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => Boolean(tag.length));
+  }
+
+  let metadata = undefined;
+  if (metadataField && metadataField.value.trim()) {
+    try {
+      metadata = JSON.parse(metadataField.value);
+      if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        throw new Error('La metadata debe ser un objeto JSON.');
+      }
+    } catch (error) {
+      console.error('Invalid metadata JSON:', error);
+      window.App?.notifications?.error?.('La metadata debe ser JSON válido.');
+      metadataField.focus();
+      return;
+    }
+  }
+
+  const payload = {
+    type: typeSelect?.value || 'technical',
+    markdown: markdownField.value,
+    tags,
+    metadata,
+  };
+
+  button.disabled = true;
+  button.textContent = 'Guardando...';
+
+  try {
+    const response = await window.API.reports.saveGenerated(reportId, payload);
+    window.App?.notifications?.success?.('Versión IA guardada correctamente.');
+    iaState.lastResult = response;
+    await loadIaHistory();
+  } catch (error) {
+    console.error('Error saving IA report:', error);
+    window.App?.notifications?.error?.('Error guardando la versión IA.');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Guardar versión';
+  }
+}
 
 async function loadTrustedContactSection() {
   const container = document.getElementById('trusted-contact-container');

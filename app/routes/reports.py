@@ -405,6 +405,75 @@ async def get_ai_generation_history(
 
 
 @router.get(
+    "/report/{report_id}/generated",
+    summary="Listar reportes IA persistidos",
+    description="Obtiene los reportes IA guardados en base de datos para un reporte base",
+)
+async def list_generated_reports(
+    report_id: int = Path(..., description="ID del reporte base"),
+    limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de entradas"),
+    db: Session = Depends(get_db),
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    items = ReportGenerationService.list_generated_reports(db, report_id, limit=limit)
+    return {"report_id": report_id, "items": items}
+
+
+@router.get(
+    "/report/{report_id}/generated/{report_type}",
+    summary="Obtener un reporte IA persistido",
+    description="Retorna el reporte IA guardado para el tipo solicitado",
+)
+async def get_generated_report(
+    report_id: int = Path(..., description="ID del reporte base"),
+    report_type: str = Path(..., description="Tipo de reporte IA"),
+    db: Session = Depends(get_db),
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    try:
+        data = ReportGenerationService.get_generated_report(db, report_id, report_type)
+        return data
+    except ReportGenerationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put(
+    "/report/{report_id}/generated",
+    summary="Guardar reporte IA persistido",
+    description="Permite almacenar manualmente un reporte IA generado en el historial",
+)
+async def save_generated_report(
+    report_id: int = Path(..., description="ID del reporte base"),
+    payload: GeneratedReportUpsertRequest = None,
+    db: Session = Depends(get_db),
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    payload = payload or GeneratedReportUpsertRequest(type="technical", markdown="")
+
+    try:
+        data = ReportGenerationService.save_generated_report(
+            db=db,
+            report_id=report_id,
+            report_type=payload.type,
+            markdown=payload.markdown,
+            metadata=payload.metadata,
+            tags=payload.tags,
+        )
+        return data
+    except ReportGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
     "/settings/prompts",
     summary="Listar prompts IA",
     description="Obtiene las plantillas de prompts configuradas para cada tipo de reporte IA",
