@@ -7,7 +7,12 @@ from app.services.trusted_contact_service import TrustedContactService
 from app.database import get_db
 from typing import List, Optional
 import logging
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Field, validator
+
+from app.services.report_generation_service import (
+    ReportGenerationError,
+    ReportGenerationService,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = logging.getLogger(__name__)
@@ -25,6 +30,45 @@ class TrustedContactPayload(BaseModel):
             stripped = value.strip()
             return stripped or None
         return value
+
+
+class ReportGenerationRequest(BaseModel):
+    type: str = Field(..., description="Tipo de reporte IA a generar")
+    force_refresh: bool = Field(False, description="Ignorar cache y forzar nueva generación")
+
+    @validator("type")
+    def _validate_type(cls, value: str) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized not in ReportGenerationService.SUPPORTED_TYPES:
+            raise ValueError(
+                f"Tipo de reporte no soportado. Opciones válidas: {', '.join(ReportGenerationService.SUPPORTED_TYPES)}"
+            )
+        return normalized
+
+
+class PromptUpdateItem(BaseModel):
+    type: str = Field(..., description="Tipo de reporte al que aplica el prompt")
+    prompt_template: str = Field(..., description="Plantilla en formato Markdown para el prompt")
+    updated_by: Optional[str] = Field(None, description="Usuario que actualiza el prompt")
+
+    @validator("type")
+    def _validate_prompt_type(cls, value: str) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized not in ReportGenerationService.SUPPORTED_TYPES:
+            raise ValueError(
+                f"Tipo de prompt no soportado. Opciones válidas: {', '.join(ReportGenerationService.SUPPORTED_TYPES)}"
+            )
+        return normalized
+
+    @validator("prompt_template")
+    def _validate_template(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("El prompt_template no puede estar vacío")
+        return value
+
+
+class PromptUpdateRequest(BaseModel):
+    prompts: List[PromptUpdateItem]
 
 
 @router.get("/domains", summary="Listar todos los dominios")
@@ -267,6 +311,103 @@ async def compare_reports(
         "metrics": metric_list,
         "comparison": comparison
     }
+
+
+@router.post(
+    "/report/{report_id}/generate",
+    summary="Generar reporte IA",
+    description="Genera un reporte IA (técnico, comercial o entregable) utilizando LMStudio",
+)
+async def generate_ai_report(
+    report_id: int = Path(..., description="ID del reporte base"),
+    payload: ReportGenerationRequest = None,
+    db: Session = Depends(get_db),
+):
+    payload = payload or ReportGenerationRequest(type="technical")
+    logger.info(
+        "Solicitando generación IA para reporte=%s tipo=%s force_refresh=%s",
+        report_id,
+        payload.type,
+        payload.force_refresh,
+    )
+
+    # Validar existencia del reporte base
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    try:
+        result = await ReportGenerationService.generate_report(
+            db=db,
+            report_id=report_id,
+            report_type=payload.type,
+            force_refresh=payload.force_refresh,
+        )
+        return result
+    except ReportGenerationError as exc:
+        logger.warning(
+            "Error de negocio generando reporte IA report=%s type=%s: %s",
+            report_id,
+            payload.type,
+            exc,
+        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - fallback
+        logger.exception(
+            "Error inesperado generando reporte IA report=%s type=%s",
+            report_id,
+            payload.type,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Ocurrió un error inesperado generando el reporte IA",
+        ) from exc
+
+
+@router.get(
+    "/report/{report_id}/generation-history",
+    summary="Historial de generaciones IA",
+    description="Devuelve el historial de ejecuciones IA para un reporte específico",
+)
+async def get_ai_generation_history(
+    report_id: int = Path(..., description="ID del reporte base"),
+    limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de entradas"),
+    db: Session = Depends(get_db),
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    history = ReportGenerationService.get_generation_history(db, report_id, limit)
+    return {"report_id": report_id, "history": history}
+
+
+@router.get(
+    "/settings/prompts",
+    summary="Listar prompts IA",
+    description="Obtiene las plantillas de prompts configuradas para cada tipo de reporte IA",
+)
+async def list_ai_prompts(db: Session = Depends(get_db)):
+    prompts = ReportGenerationService.list_prompts(db)
+    return {"prompts": prompts}
+
+
+@router.put(
+    "/settings/prompts",
+    summary="Actualizar prompts IA",
+    description="Actualiza las plantillas de prompts para generación de reportes IA",
+)
+async def update_ai_prompts(
+    payload: PromptUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        prompt_dicts = [item.dict() for item in payload.prompts]
+        prompts = ReportGenerationService.upsert_prompts(db, prompt_dicts)
+        return {"prompts": prompts}
+    except ReportGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 
 # Nuevas rutas que incluyen comentarios

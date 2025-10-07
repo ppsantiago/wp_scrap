@@ -9,9 +9,34 @@ let trustedContactState = {
   selected: { email: null, phone: null },
 };
 
+const IA_REPORT_TYPES = {
+  technical: {
+    buttonSelector: '[data-report-type="technical"]',
+    icon: '🧑🏽‍💻',
+    label: 'Generar reporte técnico',
+  },
+  commercial: {
+    buttonSelector: '[data-report-type="commercial"]',
+    icon: '📊',
+    label: 'Generar reporte comercial',
+  },
+  deliverable: {
+    buttonSelector: '[data-report-type="deliverable"]',
+    icon: '📄',
+    label: 'Generar reporte entregable',
+  },
+};
+
+let iaState = {
+  isLoading: false,
+  type: null,
+  controller: null,
+};
+
 window.App.initReportDetail = async function(id) {
   reportId = id;
   await Promise.all([loadReportData(), loadTrustedContactSection()]);
+  initIaReportButtons();
 };
 
 /**
@@ -38,12 +63,242 @@ async function loadReportData() {
     if (commentsContainer) {
       window.App.initComments('report-comments-container', 'report', reportId);
     }
-
   } catch (error) {
     console.error('Error loading report:', error);
     container.innerHTML = '<div class="error-message">Error al cargar reporte. Por favor intenta de nuevo.</div>';
   }
 }
+
+function initIaReportButtons() {
+  const container = document.getElementById('report-ia-container');
+  const wrapper = document.querySelector('.gerenate-report-container');
+  if (!container || !wrapper) return;
+
+  ensureMarkdownRenderer();
+
+  Object.entries(IA_REPORT_TYPES).forEach(([type, config]) => {
+    const button = wrapper.querySelector(config.buttonSelector);
+    if (!button) return;
+
+    button.addEventListener('click', () => handleIaGeneration(type, config, container, button));
+  });
+
+  const forceRefreshToggle = createForceRefreshToggle();
+  container.insertAdjacentElement('beforebegin', forceRefreshToggle);
+}
+
+function createForceRefreshToggle() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ia-force-refresh';
+  wrapper.innerHTML = `
+    <label class="ia-force-refresh__label">
+      <input type="checkbox" id="ia-force-refresh-checkbox" />
+      Forzar nueva generación (ignorar cache)
+    </label>
+  `;
+  return wrapper;
+}
+
+function ensureMarkdownRenderer() {
+  const hasMarked = typeof window.marked === 'function';
+  if (hasMarked) return;
+
+  if (!document.getElementById('marked-js')) {
+    const script = document.createElement('script');
+    script.id = 'marked-js';
+    script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+    script.async = true;
+    script.onerror = () => {
+      console.error('No se pudo cargar marked.js para renderizar Markdown.');
+    };
+    document.head.appendChild(script);
+  }
+}
+
+function getForceRefreshValue() {
+  const checkbox = document.getElementById('ia-force-refresh-checkbox');
+  return checkbox ? checkbox.checked : false;
+}
+
+async function handleIaGeneration(type, config, container, button) {
+  if (!reportId || iaState.isLoading) {
+    return;
+  }
+
+  resetIaState();
+  iaState.isLoading = true;
+  iaState.type = type;
+
+  const forceRefresh = getForceRefreshValue();
+  const existingContent = container.innerHTML;
+  container.innerHTML = renderIaLoading(config, forceRefresh);
+  button.disabled = true;
+
+  try {
+    const result = await window.API.reports.generateIa(reportId, {
+      type,
+      force_refresh: forceRefresh,
+    });
+
+    renderIaMarkdown(container, result);
+    window.App?.notifications?.success?.('Reporte IA generado correctamente.');
+  } catch (error) {
+    console.error('Error generating AI report:', error);
+    container.innerHTML = renderIaError(error, config, existingContent);
+    window.App?.notifications?.error?.('Error generando reporte IA.');
+  } finally {
+    iaState.isLoading = false;
+    iaState.type = null;
+    button.disabled = false;
+  }
+}
+
+function resetIaState() {
+  if (iaState.controller) {
+    try {
+      iaState.controller.abort();
+    } catch (err) {
+      // ignore abort errors
+    }
+  }
+  iaState.controller = null;
+}
+
+function renderIaLoading(config, forceRefresh) {
+  const refreshLabel = forceRefresh ? ' (forzando nueva ejecución)' : '';
+  return `
+    <div class="ia-report ia-report--loading">
+      <div class="ia-report__spinner"></div>
+      <p>${config.icon} Generando ${config.label.toLowerCase()}${refreshLabel}...</p>
+    </div>
+  `;
+}
+
+function renderIaMarkdown(container, result) {
+  const markdown = result?.markdown || '';
+  const generatedAt = result?.generated_at ? new Date(result.generated_at) : null;
+  const cached = result?.cached ? '<span class="ia-report__badge ia-report__badge--cached">Cache</span>' : '';
+
+  if (!markdown) {
+    container.innerHTML = '<div class="ia-report ia-report--empty">No se recibió contenido generado.</div>';
+    return;
+  }
+
+  let htmlContent = markdown;
+  if (typeof window.marked === 'function') {
+    htmlContent = window.marked.parse(markdown, { breaks: true, gfm: true });
+  }
+
+  container.innerHTML = `
+    <div class="ia-report">
+      <div class="ia-report__meta">
+        ${cached}
+        ${generatedAt ? `<span class="ia-report__timestamp">Generado: ${generatedAt.toLocaleString()}</span>` : ''}
+        ${result?.tokens_used ? `<span class="ia-report__token">Tokens: ${result.tokens_used}</span>` : ''}
+        ${result?.duration_ms ? `<span class="ia-report__duration">Duración: ${result.duration_ms} ms</span>` : ''}
+      </div>
+      <div class="ia-report__content js-ia-report-content">${htmlContent}</div>
+      <div class="ia-report__actions">
+        <button type="button" class="btn btn-secondary" data-ia-copy>Copiar Markdown</button>
+        <button type="button" class="btn btn-secondary" data-ia-download>Descargar .md</button>
+      </div>
+    </div>
+  `;
+
+  bindIaContentActions(container, markdown);
+}
+
+function renderIaError(error, config, fallbackContent) {
+  const message = extractErrorMessage(error) || 'Error desconocido.';
+  return `
+    <div class="ia-report ia-report--error">
+      <p>${config.icon} ${config.label}</p>
+      <p class="ia-report__error">${sanitize(message)}</p>
+      <button type="button" class="btn btn-secondary" data-ia-retry>Intentar de nuevo</button>
+      <button type="button" class="btn btn-tertiary" data-ia-show-previous>Ver contenido previo</button>
+    </div>
+    <div class="ia-report ia-report--previous" hidden>${fallbackContent}</div>
+  `;
+}
+
+function bindIaContentActions(container, markdown) {
+  const content = container.querySelector('.js-ia-report-content');
+  const copyBtn = container.querySelector('[data-ia-copy]');
+  const downloadBtn = container.querySelector('[data-ia-download]');
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(markdown);
+        window.App?.notifications?.success?.('Markdown copiado al portapapeles.');
+      } catch (err) {
+        console.warn('No se pudo copiar Markdown:', err);
+        window.App?.notifications?.error?.('No se pudo copiar el Markdown.');
+      }
+    });
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const today = new Date();
+      link.download = `reporte-ia-${iaState.type || 'general'}-${today.toISOString().split('T')[0]}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  }
+}
+
+function extractErrorMessage(error) {
+  if (!error) return null;
+  if (typeof error === 'string') return error;
+  if (error?.response?.data?.detail) return error.response.data.detail;
+  if (error?.detail) return error.detail;
+  if (error?.message) return error.message;
+  return null;
+}
+
+function sanitize(text) {
+  if (typeof text !== 'string') return '';
+  return text.replace(/[&<>]/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[s] || s));
+}
+
+document.addEventListener('click', (event) => {
+  const retryBtn = event.target.closest('[data-ia-retry]');
+  if (retryBtn && iaState.type) {
+    const container = document.getElementById('report-ia-container');
+    const wrapper = document.querySelector('.gerenate-report-container');
+    if (!container || !wrapper) return;
+
+    const config = IA_REPORT_TYPES[iaState.type];
+    if (!config) return;
+
+    const button = wrapper.querySelector(config.buttonSelector);
+    if (!button) return;
+
+    handleIaGeneration(iaState.type, config, container, button);
+  }
+
+  const showPrevBtn = event.target.closest('[data-ia-show-previous]');
+  if (showPrevBtn) {
+    const previous = document.querySelector('.ia-report--previous');
+    if (previous) {
+      const hidden = previous.hasAttribute('hidden');
+      if (hidden) {
+        previous.removeAttribute('hidden');
+        showPrevBtn.textContent = 'Ocultar contenido previo';
+      } else {
+        previous.setAttribute('hidden', 'hidden');
+        showPrevBtn.textContent = 'Ver contenido previo';
+      }
+    }
+  }
+});
 
 async function loadTrustedContactSection() {
   const container = document.getElementById('trusted-contact-container');

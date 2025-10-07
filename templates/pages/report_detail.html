@@ -43,9 +43,18 @@
     <h2 style="margin: 0;">Reporte generation - IA</h2>
   </div>
   <div class="gerenate-report-container">
-    <button class="btn"><p style="font-size: 32px;">🧑🏽‍💻</p>Generar reporte tecnico</button>
-    <button class="btn"><p style="font-size: 32px;">📊</p>Generar reporte comercial</button>
-    <button class="btn"><p style="font-size: 32px;">📄</p>Generar reporte entregable</button>
+    <button class="btn" type="button" data-report-type="technical">
+      <p style="font-size: 32px;">🧑🏽‍💻</p>
+      Generar reporte tecnico
+    </button>
+    <button class="btn" type="button" data-report-type="commercial">
+      <p style="font-size: 32px;">📊</p>
+      Generar reporte comercial
+    </button>
+    <button class="btn" type="button" data-report-type="deliverable">
+      <p style="font-size: 32px;">📄</p>
+      Generar reporte entregable
+    </button>
   </div>
   <div id="report-ia-container">
     <!-- IA will be loaded here by JS -->

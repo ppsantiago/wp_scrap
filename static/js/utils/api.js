@@ -106,6 +106,32 @@ window.API.reports = {
       method: 'PUT',
       body: JSON.stringify({ email, phone })
     });
+  },
+
+  // Generate AI report
+  generateIa: async (reportId, { type = 'technical', force_refresh = false } = {}) => {
+    return fetchAPI(`/reports/report/${reportId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ type, force_refresh })
+    });
+  },
+
+  // Retrieve AI generation history
+  getGenerationHistory: async (reportId, limit = 20) => {
+    return fetchAPI(`/reports/report/${reportId}/generation-history?limit=${limit}`);
+  },
+
+  // List AI prompts
+  listPrompts: async () => {
+    return fetchAPI('/reports/settings/prompts');
+  },
+
+  // Update AI prompts
+  updatePrompts: async (prompts) => {
+    return fetchAPI('/reports/settings/prompts', {
+      method: 'PUT',
+      body: JSON.stringify({ prompts })
+    });
   }
 };
 

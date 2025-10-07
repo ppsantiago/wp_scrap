@@ -1,5 +1,5 @@
 # app/models/domain.py
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Index, func, and_
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Index, UniqueConstraint, func, and_
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -307,4 +307,71 @@ class Report(Base):
             "security": self.get_json_data("security_data"),
             "site": self.get_json_data("site_data"),
             "pages": self.get_json_data("pages_data"),
+        }
+
+
+class ReportPrompt(Base):
+    """Plantilla de prompt por tipo de reporte IA."""
+
+    __tablename__ = "report_prompts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(50), nullable=False, unique=True, index=True)
+    prompt_template = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_by = Column(String(255), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("type", name="uq_report_prompt_type"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "prompt_template": self.prompt_template,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by,
+        }
+
+
+class ReportGenerationLog(Base):
+    """Historial de generaciones IA para auditoría y cache."""
+
+    __tablename__ = "report_generation_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="CASCADE"), nullable=False, index=True)
+    prompt_id = Column(Integer, ForeignKey("report_prompts.id", ondelete="SET NULL"), nullable=True, index=True)
+    type = Column(String(50), nullable=False, index=True)
+    status = Column(String(50), nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    tokens_used = Column(Integer, nullable=True)
+    cached = Column(Boolean, default=False)
+    markdown_output = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    metadata_json = Column("metadata", Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    report = relationship("Report", backref="generation_logs")
+    prompt = relationship("ReportPrompt")
+
+    __table_args__ = (
+        Index("idx_report_generation_type_report", "type", "report_id"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "report_id": self.report_id,
+            "prompt_id": self.prompt_id,
+            "type": self.type,
+            "status": self.status,
+            "duration_ms": self.duration_ms,
+            "tokens_used": self.tokens_used,
+            "cached": self.cached,
+            "markdown_output": self.markdown_output,
+            "error_message": self.error_message,
+            "metadata": self.metadata_json,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

@@ -7,9 +7,11 @@ services:
     container_name: wp-scrap
     environment:
       - DB_DIR=/app/data  # Ruta donde se guardará la DB dentro del contenedor
+      - LMSTUDIO_BASE_URL=http://ppsantiago-desk.tailcfdf38.ts.net:1234/v1
+      - REPORT_GENERATION_TIMEOUT=180
     volumes:
       - ./data:/app/data  # Monta directorio local ./data al contenedor /app/data
       - .:/app  # Monta todo el proyecto para desarrollo con hot reload
-    working_dir: /app  # Establecer directorio de trabajo
+    working_dir: /app  # Establecer directorio de Trabajo
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
     restart: unless-stopped  # Reinicia automáticamente si falla

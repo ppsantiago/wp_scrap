@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.database import SessionLocal, init_db
 from app.main import app
-from app.models import Domain, Report
+from app.models import Domain, Report, ReportPrompt, ReportGenerationLog
 from app.services.storage_service import StorageService
 from fastapi.testclient import TestClient
 from playwright.sync_api import sync_playwright
@@ -23,12 +23,16 @@ def test_db_dir(tmp_path_factory):
 def clean_database(test_db_dir):
     """Limpia tablas principales antes y después de cada prueba."""
     with SessionLocal() as session:
+        session.execute(text("DELETE FROM report_generation_logs"))
+        session.execute(text("DELETE FROM report_prompts"))
         session.execute(text("DELETE FROM comments"))
         session.execute(text("DELETE FROM reports"))
         session.execute(text("DELETE FROM domains"))
         session.commit()
     yield
     with SessionLocal() as session:
+        session.execute(text("DELETE FROM report_generation_logs"))
+        session.execute(text("DELETE FROM report_prompts"))
         session.execute(text("DELETE FROM comments"))
         session.execute(text("DELETE FROM reports"))
         session.execute(text("DELETE FROM domains"))
