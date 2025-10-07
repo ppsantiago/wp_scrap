@@ -1,39 +1,39 @@
-{% extends 'base.html' %} {% block title %}{{ title }}{% endblock %} {% block
-content %}
-<h1>WP Scrap tool</h1>
-<p>Scrap domain</p>
-<div class="card">
-  <h2>Scraper</h2>
-  <div style="margin-top: 20px">
-    <button id="openModalBtn" class="btn-primary">Scrap domain</button>
-  </div>
-</div>
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
 
-<!-- Modal elements -->
-<!-- <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true"></div> -->
-<div id="domainFormModal" class="modal-backdrop" aria-hidden="true"></div>
-<div
-  id="modal-domainForm"
-  class="modal"
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="modalTitle"
->
-  <div class="modal-header">
-    <h3 id="modalTitle">WP Scrap tool - Scrap domain</h3>
-    <button class="icon-button" data-close-modal aria-label="Cerrar">✕</button>
+{% block content %}
+<h1>WP Scrap tool</h1>
+<p>Crear un job de scraping individual para un dominio específico.</p>
+
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <h2>Scraping individual</h2>
   </div>
-  <form id="domainForm" class="modal-body">
-    <label>
-      <span>Domain</span>
-      <input id="domainInput" type="text" name="nombre" placeholder="domain.com" required />
-    </label>
-    <div class="modal-actions">
-      <button type="button" class="btn" data-close-modal>Cancelar</button>
-      <button type="submit" class="btn-primary">Enviar</button>
-    </div>
-  </form>
-  <div style="padding: 20px;" id="domainResult">
+  <div class="card-body">
+    <form id="singleScrapForm" class="form-grid" autocomplete="off">
+      <label>
+        <span>Dominio</span>
+        <input
+          id="singleScrapDomain"
+          type="text"
+          name="domain"
+          placeholder="midominio.com"
+          required
+        />
+      </label>
+      <div class="form-actions" style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+        <button type="submit" class="btn-primary">Crear job</button>
+        <span id="singleScrapFeedback" class="form-help" style="flex: 1 1 auto;"></span>
+      </div>
+    </form>
+    <p class="form-help" style="margin-top: 16px;">
+      El job ejecutará el scraping en background y podrás seguir su progreso en la sección de Jobs.
+    </p>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="/static/js/pages/scrap.js"></script>
 {% endblock %}

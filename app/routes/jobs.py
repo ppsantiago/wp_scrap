@@ -4,7 +4,8 @@ Rutas API para gestión de Jobs (trabajos en lote).
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
+import json
 from pydantic import BaseModel, Field
 import logging
 
@@ -20,7 +21,26 @@ logger = logging.getLogger(__name__)
 
 class CreateBatchScrapingJobRequest(BaseModel):
     """Request para crear un job de scraping en lote"""
-    domains: List[str] = Field(..., description="Lista de dominios a scrapear", min_items=1)
+    domains: Optional[List[str]] = Field(
+        None,
+        description="Lista de dominios a scrapear",
+        min_items=1,
+    )
+    domains_json: Optional[Any] = Field(
+        None,
+        description=(
+            "Carga de dominios en formato JSON. Puede ser un array de strings, "
+            "un array de objetos con la clave 'domain', o un objeto con la clave 'domains'."
+        ),
+    )
+    name: Optional[str] = Field(None, description="Nombre del job")
+    description: Optional[str] = Field(None, description="Descripción del job")
+    created_by: str = Field("system", description="Usuario que crea el job")
+
+
+class CreateSingleScrapingJobRequest(BaseModel):
+    """Request para crear un job de scraping individual"""
+    domain: str = Field(..., min_length=1, description="Dominio a scrapear")
     name: Optional[str] = Field(None, description="Nombre del job")
     description: Optional[str] = Field(None, description="Descripción del job")
     created_by: str = Field("system", description="Usuario que crea el job")
@@ -38,6 +58,70 @@ class JobResponse(BaseModel):
     failed_steps: int
 
 
+# ---- Helpers ----
+
+def _normalize_domain(value: str) -> str:
+    cleaned = value.replace("http://", "").replace("https://", "").strip()
+    return cleaned.strip("/")
+
+
+def _extract_domains(domains: Optional[List[str]], domains_json: Optional[Any]) -> List[str]:
+    collected: List[str] = []
+
+    if domains:
+        collected.extend(domains)
+
+    if domains_json is not None:
+        payload = domains_json
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=400, detail=f"JSON inválido: {exc.msg}")
+
+        def collect_from_iterable(items: Any) -> None:
+            if not isinstance(items, list):
+                raise HTTPException(status_code=400, detail="El JSON debe contener una lista de dominios")
+            for item in items:
+                if isinstance(item, str):
+                    collected.append(item)
+                elif isinstance(item, dict):
+                    for key in ("domain", "url", "host"):
+                        value = item.get(key)
+                        if isinstance(value, str):
+                            collected.append(value)
+                            break
+
+        if isinstance(payload, list):
+            collect_from_iterable(payload)
+        elif isinstance(payload, dict):
+            for key in ("domains", "items", "data", "values"):
+                if key in payload:
+                    collect_from_iterable(payload[key])
+                    break
+            else:
+                raise HTTPException(status_code=400, detail="El objeto JSON no contiene la clave 'domains'")
+        else:
+            raise HTTPException(status_code=400, detail="Formato de JSON para dominios no soportado")
+
+    seen: set[str] = set()
+    normalized: List[str] = []
+    for domain in collected:
+        if not isinstance(domain, str):
+            continue
+        clean = _normalize_domain(domain)
+        if not clean:
+            continue
+        if clean not in seen:
+            normalized.append(clean)
+            seen.add(clean)
+
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Debe proporcionar al menos un dominio válido para crear el job")
+
+    return normalized
+
+
 # ---- Endpoints ----
 
 @router.post("/batch-scraping", status_code=201)
@@ -47,16 +131,17 @@ async def create_batch_scraping_job(
 ):
     """
     Crea un job para scraping en lote de múltiples dominios.
-    El job se ejecutará en background sin bloquear la UI.
     
     Returns:
         Job creado con su ID y estado inicial
     """
     try:
+        domains = _extract_domains(request.domains, request.domains_json)
+
         # Crear el job
         job = JobService.create_batch_scraping_job(
             db=db,
-            domains=request.domains,
+            domains=domains,
             name=request.name,
             description=request.description,
             created_by=request.created_by
@@ -73,6 +158,40 @@ async def create_batch_scraping_job(
         
     except Exception as e:
         logger.error(f"Error creando job de scraping en lote: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/single-scraping", status_code=201)
+async def create_single_scraping_job(
+    request: CreateSingleScrapingJobRequest,
+    db: Session = Depends(get_db)
+):
+    """Crea un job para scraping individual de un único dominio."""
+    try:
+        domain = _normalize_domain(request.domain)
+        if not domain:
+            raise HTTPException(status_code=400, detail="Dominio inválido")
+
+        job = JobService.create_single_scraping_job(
+            db=db,
+            domain=domain,
+            name=request.name,
+            description=request.description,
+            created_by=request.created_by,
+        )
+
+        JobService.start_job(job.id)
+
+        return {
+            "success": True,
+            "message": f"Job creado e iniciado: {job.name}",
+            "job": job.to_dict(include_steps=False),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creando job de scraping individual: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

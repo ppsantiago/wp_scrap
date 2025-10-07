@@ -210,15 +210,38 @@ window.API.jobs = {
   },
 
   // Create batch scraping job
-  createBatchScraping: async (domains, name = null, description = null, createdBy = 'user') => {
+  createBatchScraping: async ({ domains = null, domainsJson = null, name = null, description = null, createdBy = 'user' } = {}) => {
+    const payload = {
+      created_by: createdBy,
+    };
+
+    if (domains && domains.length) {
+      payload.domains = domains;
+    }
+    if (domainsJson !== null && domainsJson !== undefined) {
+      payload.domains_json = domainsJson;
+    }
+    if (name) payload.name = name;
+    if (description) payload.description = description;
+
     return fetchAPI('/api/jobs/batch-scraping', {
       method: 'POST',
-      body: JSON.stringify({
-        domains,
-        name,
-        description,
-        created_by: createdBy
-      })
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Create single scraping job
+  createSingleScraping: async (domain, name = null, description = null, createdBy = 'user') => {
+    const payload = {
+      domain,
+      created_by: createdBy,
+    };
+    if (name) payload.name = name;
+    if (description) payload.description = description;
+
+    return fetchAPI('/api/jobs/single-scraping', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 
