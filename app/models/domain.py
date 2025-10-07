@@ -192,6 +192,12 @@ class Report(Base):
 
     # Relación con dominio
     domain = relationship("Domain", back_populates="reports")
+    generated_reports = relationship(
+        "GeneratedReport",
+        back_populates="report",
+        cascade="all, delete-orphan",
+        order_by="GeneratedReport.created_at.desc()",
+    )
 
     # Índices compuestos para consultas eficientes
     __table_args__ = (
@@ -375,3 +381,66 @@ class ReportGenerationLog(Base):
             "metadata": self.metadata_json,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class GeneratedReport(Base):
+    """Persistencia de salidas IA generadas para un reporte base."""
+
+    __tablename__ = "generated_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(50), nullable=False, index=True)
+    markdown = Column(Text, nullable=False)
+    tags_json = Column("tags", Text, nullable=True)
+    metadata_json = Column("metadata", Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    report = relationship("Report", back_populates="generated_reports")
+
+    __table_args__ = (
+        Index("idx_generated_report_unique", "report_id", "type", unique=True),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "report_id": self.report_id,
+            "type": self.type,
+            "markdown": self.markdown,
+            "tags": self.get_tags(),
+            "metadata": self.get_metadata(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def set_tags(self, tags: list[str] | None) -> None:
+        if tags is None:
+            self.tags_json = None
+            return
+        self.tags_json = json.dumps(tags, ensure_ascii=False)
+
+    def get_tags(self) -> list[str]:
+        if not self.tags_json:
+            return []
+        try:
+            data = json.loads(self.tags_json)
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    def set_metadata(self, metadata: dict | None) -> None:
+        if metadata is None:
+            self.metadata_json = None
+            return
+        self.metadata_json = json.dumps(metadata, ensure_ascii=False)
+
+    def get_metadata(self) -> dict:
+        if not self.metadata_json:
+            return {}
+        try:
+            data = json.loads(self.metadata_json)
+            return data if isinstance(data, dict) else {}
+        except json.JSONDecodeError:
+            return {}

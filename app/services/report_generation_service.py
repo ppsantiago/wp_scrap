@@ -12,7 +12,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.models import Report, ReportPrompt, ReportGenerationLog
+from app.models import Report, ReportPrompt, ReportGenerationLog, GeneratedReport
 from app.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
@@ -352,16 +352,25 @@ class ReportGenerationService:
                 metadata=json.dumps(metadata | {"provider_response_id": response.get("id")}, ensure_ascii=False),
             )
             db.add(log_entry)
+            generated_output = cls._save_generated_report(
+                db=db,
+                report=report,
+                report_type=normalized_type,
+                markdown=result.get("markdown"),
+                metadata=result.get("raw"),
+            )
             db.commit()
 
             return {
                 "report_id": report_id,
                 "type": normalized_type,
                 "cached": False,
-                "markdown": result.get("markdown"),
-                "generated_at": log_entry.created_at.isoformat() if log_entry.created_at else None,
+                "markdown": generated_output.get("markdown"),
+                "generated_at": generated_output.get("updated_at") or generated_output.get("created_at"),
                 "tokens_used": log_entry.tokens_used,
                 "duration_ms": log_entry.duration_ms,
+                "tags": generated_output.get("tags"),
+                "metadata": generated_output.get("metadata"),
             }
 
         except (httpx.HTTPError, asyncio.TimeoutError) as exc:
@@ -400,20 +409,99 @@ class ReportGenerationService:
             raise ReportGenerationError("Ocurrió un error inesperado generando el reporte IA") from exc
 
     @classmethod
-    def get_generation_history(
+    def _save_generated_report(
+        cls,
+        db: Session,
+        report: Report,
+        report_type: str,
+        markdown: str,
+        metadata: Optional[dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
+        if not markdown:
+            raise ReportGenerationError("La respuesta del proveedor IA no contiene markdown")
+
+        normalized_type = cls._normalize_type(report_type)
+
+        row = (
+            db.query(GeneratedReport)
+            .filter(
+                GeneratedReport.report_id == report.id,
+                GeneratedReport.type == normalized_type,
+            )
+            .first()
+        )
+
+        if not row:
+            row = GeneratedReport(report_id=report.id, type=normalized_type)
+            db.add(row)
+
+        row.markdown = markdown
+        row.set_metadata(metadata)
+        row.set_tags(tags)
+
+        db.flush()
+        return row.to_dict()
+
+    @classmethod
+    def save_generated_report(
+        cls,
+        db: Session,
+        report_id: int,
+        report_type: str,
+        markdown: str,
+        metadata: Optional[dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
+        report = cls._fetch_report(db, report_id)
+        data = cls._save_generated_report(
+            db=db,
+            report=report,
+            report_type=report_type,
+            markdown=markdown,
+            metadata=metadata,
+            tags=tags,
+        )
+        db.commit()
+        return data
+
+    @classmethod
+    def list_generated_reports(
         cls,
         db: Session,
         report_id: int,
         limit: int = 20,
     ) -> list[dict[str, Any]]:
         rows = (
-            db.query(ReportGenerationLog)
-            .filter(ReportGenerationLog.report_id == report_id)
-            .order_by(ReportGenerationLog.created_at.desc())
+            db.query(GeneratedReport)
+            .filter(GeneratedReport.report_id == report_id)
+            .order_by(GeneratedReport.created_at.desc())
             .limit(limit)
             .all()
         )
         return [row.to_dict() for row in rows]
+
+    @classmethod
+    def get_generated_report(
+        cls,
+        db: Session,
+        report_id: int,
+        report_type: str,
+    ) -> dict[str, Any]:
+        normalized_type = cls._normalize_type(report_type)
+        row = (
+            db.query(GeneratedReport)
+            .filter(
+                GeneratedReport.report_id == report_id,
+                GeneratedReport.type == normalized_type,
+            )
+            .first()
+        )
+        if not row:
+            raise ReportGenerationError(
+                f"No hay reporte IA guardado para report_id={report_id} tipo={normalized_type}"
+            )
+        return row.to_dict()
 
 
 __all__ = ["ReportGenerationService", "ReportGenerationError"]

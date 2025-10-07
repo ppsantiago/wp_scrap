@@ -1,5 +1,5 @@
 # app/models/__init__.py
-from .domain import Domain, Report, Comment, TrustedContact, ReportPrompt, ReportGenerationLog
+from .domain import Domain, Report, Comment, TrustedContact, ReportPrompt, ReportGenerationLog, GeneratedReport
 from .job import Job, JobStep, JobStatus, JobType
 
 __all__ = [
@@ -9,6 +9,7 @@ __all__ = [
     "TrustedContact",
     "ReportPrompt",
     "ReportGenerationLog",
+    "GeneratedReport",
     "Job",
     "JobStep",
     "JobStatus",

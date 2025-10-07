@@ -5,7 +5,7 @@ from app.services.storage_service import StorageService
 from app.services.comment_service import CommentService
 from app.services.trusted_contact_service import TrustedContactService
 from app.database import get_db
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 from pydantic import BaseModel, Field, validator
 
@@ -69,6 +69,28 @@ class PromptUpdateItem(BaseModel):
 
 class PromptUpdateRequest(BaseModel):
     prompts: List[PromptUpdateItem]
+
+
+class GeneratedReportUpsertRequest(BaseModel):
+    type: str = Field(..., description="Tipo de reporte IA generado")
+    markdown: str = Field(..., description="Contenido Markdown generado")
+    tags: Optional[List[str]] = Field(None, description="Etiquetas asociadas al reporte")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadatos adicionales del proveedor IA")
+
+    @validator("type")
+    def _normalize_type(cls, value: str) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized not in ReportGenerationService.SUPPORTED_TYPES:
+            raise ValueError(
+                f"Tipo de reporte no soportado. Opciones válidas: {', '.join(ReportGenerationService.SUPPORTED_TYPES)}"
+            )
+        return normalized
+
+    @validator("markdown")
+    def _validate_markdown(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("El markdown no puede estar vacío")
+        return value
 
 
 @router.get("/domains", summary="Listar todos los dominios")
