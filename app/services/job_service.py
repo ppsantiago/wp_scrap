@@ -85,12 +85,51 @@ class JobService:
                 status=JobStatus.PENDING
             )
             db.add(step)
-        
+
         db.commit()
-        
+
         logger.info(f"Job creado: ID={job.id}, Tipo={job.job_type}, Pasos={job.total_steps}")
         return job
-    
+
+    @classmethod
+    def create_single_scraping_job(
+        cls,
+        db: Session,
+        domain: str,
+        name: str = None,
+        description: str = None,
+        created_by: str = "system"
+    ) -> Job:
+        """Crea un job para scraping individual de un dominio."""
+        if not domain or not isinstance(domain, str):
+            raise ValueError("Dominio inválido para job individual")
+
+        clean_domain = domain.replace("http://", "").replace("https://", "").strip().strip("/")
+        if not clean_domain:
+            raise ValueError("Dominio inválido para job individual")
+
+        job = Job(
+            job_type=JobType.SINGLE_SCRAPING,
+            name=name or f"Single Scraping - {clean_domain}",
+            description=description or f"Scraping individual para {clean_domain}",
+            config={
+                "domain": clean_domain,
+                "save_to_db": True,
+                "max_retries": 2,
+            },
+            status=JobStatus.PENDING,
+            total_steps=1,
+            created_by=created_by,
+            priority=7,
+        )
+
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+
+        logger.info(f"Job creado: ID={job.id}, Tipo={job.job_type}, Dominio={clean_domain}")
+        return job
+
     @classmethod
     async def execute_job(cls, job_id: int):
         """
@@ -100,23 +139,19 @@ class JobService:
         Args:
             job_id: ID del job a ejecutar
         """
-        # Crear una nueva sesión para este job
         db = SessionLocal()
         
         try:
-            # Obtener el job
             job = db.query(Job).filter(Job.id == job_id).first()
             if not job:
                 logger.error(f"Job {job_id} no encontrado")
                 return
             
-            # Marcar como iniciado
             job.mark_started()
             db.commit()
             
             logger.info(f"Iniciando ejecucion de Job {job_id}: {job.name}")
             
-            # Ejecutar según tipo
             if job.job_type == JobType.BATCH_SCRAPING:
                 await cls._execute_batch_scraping(db, job)
             elif job.job_type == JobType.SINGLE_SCRAPING:
@@ -125,7 +160,6 @@ class JobService:
                 job.mark_failed(f"Tipo de job no soportado: {job.job_type}")
                 db.commit()
             
-            # Si terminó sin errores, marcar como completado
             if job.status == JobStatus.RUNNING:
                 result_summary = {
                     "total": job.total_steps,
@@ -145,101 +179,12 @@ class JobService:
                 if job:
                     job.mark_failed(str(e))
                     db.commit()
-            except:
+            except Exception:
                 pass
         finally:
             db.close()
-            # Remover del registro de jobs en ejecucion
             if job_id in cls._running_jobs:
                 del cls._running_jobs[job_id]
-    
-    @classmethod
-    async def _execute_batch_scraping(cls, db: Session, job: Job):
-        """
-        Ejecuta un job de scraping en lote.
-        
-        Args:
-            db: Sesión de base de datos
-            job: Job a ejecutar
-        """
-        domains = job.config.get("domains", [])
-        max_retries = job.config.get("max_retries", 2)
-        
-        # Obtener pasos
-        steps = db.query(JobStep).filter(
-            JobStep.job_id == job.id
-        ).order_by(JobStep.step_number).all()
-        
-        for step in steps:
-            # Verificar si el job fue cancelado
-            db.refresh(job)
-            if job.status == JobStatus.CANCELLED:
-                logger.info(f"Job {job.id} cancelado, deteniendo ejecucion")
-                break
-            
-            domain_idx = step.step_number - 1
-            if domain_idx >= len(domains):
-                continue
-                
-            domain = domains[domain_idx]
-            
-            # Marcar paso como iniciado
-            step.mark_started()
-            db.commit()
-            
-            logger.info(f"Job {job.id} - Paso {step.step_number}/{job.total_steps}: {domain}")
-            
-            # Intentar scraping con reintentos
-            success = False
-            last_error = None
-            
-            for attempt in range(max_retries + 1):
-                try:
-                    # Realizar scraping
-                    result = await scrap_domain(domain)
-                    
-                    if result and result.get("success"):
-                        # Guardar en base de datos
-                        report = StorageService.save_report(
-                            db=db,
-                            domain_name=domain,
-                            report_data=result
-                        )
-                        
-                        # Marcar paso como completado
-                        step.mark_completed({
-                            "report_id": report.id,
-                            "status_code": result.get("status_code"),
-                            "domain": domain
-                        })
-                        
-                        success = True
-                        logger.info(f"Job {job.id} - Paso {step.step_number} completado: {domain}")
-                        break
-                    else:
-                        last_error = result.get("error") if result else "Error desconocido"
-                        
-                except Exception as e:
-                    last_error = str(e)
-                    logger.error(f"Job {job.id} - Error en paso {step.step_number} (intento {attempt + 1}): {str(e)}")
-                
-                # Esperar antes de reintentar
-                if attempt < max_retries:
-                    await asyncio.sleep(2)
-            
-            # Si no tuvo éxito después de todos los intentos
-            if not success:
-                step.mark_failed(last_error or "Error en scraping")
-                logger.warning(f"Job {job.id} - Paso {step.step_number} falló después de {max_retries + 1} intentos")
-            
-            db.commit()
-            
-            # Actualizar progreso del job
-            job.update_progress()
-            db.commit()
-            
-            # Pequeña pausa entre dominios para no sobrecargar
-            await asyncio.sleep(1)
     
     @classmethod
     async def _execute_single_scraping(cls, db: Session, job: Job):
