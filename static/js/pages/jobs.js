@@ -66,7 +66,11 @@ class JobsManager {
     // Create job button
     const createJobBtn = document.getElementById('createJobBtn');
     if (createJobBtn) {
-      createJobBtn.addEventListener('click', () => this.showCreateModal());
+      createJobBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.showCreateModal();
+      });
     }
 
     // Modal close buttons
@@ -77,6 +81,16 @@ class JobsManager {
     }
     if (cancelJobBtn2) {
       cancelJobBtn2.addEventListener('click', () => this.hideCreateModal());
+    }
+
+    // Close modal when clicking on backdrop
+    const modal = document.getElementById('createJobModal');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          this.hideCreateModal();
+        }
+      });
     }
 
     // Refresh button
@@ -99,12 +113,14 @@ class JobsManager {
 
     // Bulk actions
     this.setupBulkActionListeners();
-
     // Create job form
     const createJobForm = document.getElementById('createJobForm');
     if (createJobForm) {
       createJobForm.addEventListener('submit', (e) => this.handleCreateJob(e));
     }
+
+    // Bulk actions
+    this.setupBulkActionListeners();
   }
 
   setupBulkActionListeners() {
@@ -477,8 +493,8 @@ class JobsManager {
   showCreateModal() {
     const modal = document.getElementById('createJobModal');
     if (modal) {
-      modal.classList.remove('hidden');
-      // Focus on first input
+      modal.classList.add('visible');
+      // Don't set display manually - let CSS handle it
       setTimeout(() => document.getElementById('jobName')?.focus(), 100);
     }
   }
@@ -486,7 +502,8 @@ class JobsManager {
   hideCreateModal() {
     const modal = document.getElementById('createJobModal');
     if (modal) {
-      modal.classList.add('hidden');
+      modal.classList.remove('visible');
+      // Don't set display manually - let CSS handle it
       document.getElementById('createJobForm')?.reset();
     }
   }

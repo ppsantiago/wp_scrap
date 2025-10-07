@@ -73,7 +73,7 @@ El compose monta `./data` para persistir la base de datos y expone la aplicacion
 - Los pasos registran bytes, errores o IDs de reporte generados.
 - El listado de jobs refresca datos cada pocos segundos y permite cancelar ejecuciones en curso.
 
-Funciones adicionales como reintentos manuales, borrado o logs via `/api/jobs/{id}/retry|delete|logs` ya estan previstas en el frontend (`static/js/utils/api.js`), pero los endpoints aun no estan implementados en `app/routes/jobs.py`.
+Funciones adicionales como reintentos manuales, borrado, progreso resumido y logs estan disponibles via `/api/jobs/{id}/retry`, `DELETE /api/jobs/{id}`, `/api/jobs/{id}/progress` y `/api/jobs/{id}/logs`, alineadas con los helpers en `static/js/utils/api.js`.
 
 ## Datos y reportes
 - Los reportes guardan un resumen cacheado (palabras, enlaces, solicitudes) y el JSON completo comprimido cuando es grande.

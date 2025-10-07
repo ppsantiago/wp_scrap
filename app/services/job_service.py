@@ -20,9 +20,13 @@ logger = logging.getLogger(__name__)
 class JobService:
     """Servicio para gestionar y ejecutar jobs"""
     
-    # Registro de jobs en ejecución (job_id -> asyncio.Task)
+    # Registro de jobs en ejecucion (job_id -> asyncio.Task)
     _running_jobs: Dict[int, asyncio.Task] = {}
     
+    @staticmethod
+    def _to_iso(value: Optional[datetime]) -> Optional[str]:
+        return value.isoformat() if value else None
+
     @classmethod
     def create_batch_scraping_job(
         cls,
@@ -110,7 +114,7 @@ class JobService:
             job.mark_started()
             db.commit()
             
-            logger.info(f"Iniciando ejecución de Job {job_id}: {job.name}")
+            logger.info(f"Iniciando ejecucion de Job {job_id}: {job.name}")
             
             # Ejecutar según tipo
             if job.job_type == JobType.BATCH_SCRAPING:
@@ -145,7 +149,7 @@ class JobService:
                 pass
         finally:
             db.close()
-            # Remover del registro de jobs en ejecución
+            # Remover del registro de jobs en ejecucion
             if job_id in cls._running_jobs:
                 del cls._running_jobs[job_id]
     
@@ -170,7 +174,7 @@ class JobService:
             # Verificar si el job fue cancelado
             db.refresh(job)
             if job.status == JobStatus.CANCELLED:
-                logger.info(f"Job {job.id} cancelado, deteniendo ejecución")
+                logger.info(f"Job {job.id} cancelado, deteniendo ejecucion")
                 break
             
             domain_idx = step.step_number - 1
@@ -301,7 +305,7 @@ class JobService:
     @classmethod
     def start_job(cls, job_id: int) -> bool:
         """
-        Inicia la ejecución de un job en background.
+        Inicia la ejecucion de un job en background.
         
         Args:
             job_id: ID del job a iniciar
@@ -310,7 +314,7 @@ class JobService:
             True si se inició correctamente, False si ya estaba corriendo
         """
         if job_id in cls._running_jobs:
-            logger.warning(f"Job {job_id} ya está en ejecución")
+            logger.warning(f"Job {job_id} ya esta en ejecucion")
             return False
         
         # Crear tarea asíncrona
@@ -323,7 +327,7 @@ class JobService:
     @classmethod
     def cancel_job(cls, db: Session, job_id: int) -> bool:
         """
-        Cancela un job en ejecución.
+        Cancela un job en ejecucion.
         
         Args:
             db: Sesión de base de datos
@@ -340,7 +344,7 @@ class JobService:
         job.mark_cancelled()
         db.commit()
         
-        # Si está en ejecución, cancelar la tarea
+        # Si esta en ejecucion, cancelar la tarea
         if job_id in cls._running_jobs:
             task = cls._running_jobs[job_id]
             task.cancel()
@@ -349,6 +353,128 @@ class JobService:
         
         return True
     
+    @classmethod
+    def is_job_running(cls, job_id: int) -> bool:
+        task = cls._running_jobs.get(job_id)
+        return bool(task and not task.done())
+
+    @classmethod
+    def delete_job(cls, db: Session, job_id: int) -> bool:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return False
+        if cls.is_job_running(job_id):
+            raise RuntimeError("Job en ejecucion, cancelalo antes de eliminarlo")
+        db.delete(job)
+        db.commit()
+        logger.info(f"Job {job_id} eliminado")
+        return True
+
+    @classmethod
+    def retry_job(cls, db: Session, job_id: int) -> Optional[Dict[str, Any]]:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return None
+        if cls.is_job_running(job_id):
+            raise RuntimeError("El job esta en ejecucion, no se puede reintentar")
+        allowed_status = {JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED}
+        if job.status not in allowed_status:
+            raise ValueError("Solo se pueden reintentar jobs fallidos, cancelados o completados")
+        job.status = JobStatus.PENDING
+        job.started_at = None
+        job.completed_at = None
+        job.error_message = None
+        job.result_summary = None
+        job.completed_steps = 0
+        job.failed_steps = 0
+        steps = db.query(JobStep).filter(JobStep.job_id == job_id).order_by(JobStep.step_number).all()
+        for step in steps:
+            step.status = JobStatus.PENDING
+            step.started_at = None
+            step.completed_at = None
+            step.error_message = None
+            step.result_data = None
+        job.update_progress()
+        db.commit()
+        db.refresh(job)
+        if not cls.start_job(job_id):
+            raise RuntimeError("No se pudo iniciar el job de reintento")
+        return job.to_dict(include_steps=False)
+
+    @classmethod
+    def get_job_progress(
+        cls,
+        db: Session,
+        job_id: int,
+        step_limit: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return None
+        steps_query = db.query(JobStep).filter(JobStep.job_id == job_id).order_by(JobStep.step_number)
+        all_steps = steps_query.all()
+        if step_limit and step_limit > 0:
+            steps = all_steps[-step_limit:]
+        else:
+            steps = all_steps
+        step_data = [
+            {
+                "step_number": step.step_number,
+                "name": step.name,
+                "status": step.status,
+                "started_at": cls._to_iso(step.started_at),
+                "completed_at": cls._to_iso(step.completed_at),
+                "error_message": step.error_message,
+                "result_data": step.result_data,
+            }
+            for step in steps
+        ]
+        progress = {
+            "id": job.id,
+            "job_type": job.job_type,
+            "name": job.name,
+            "status": job.status,
+            "progress_percentage": job.get_progress_percentage(),
+            "total_steps": job.total_steps,
+            "completed_steps": job.completed_steps,
+            "failed_steps": job.failed_steps,
+            "running_steps": sum(1 for step in all_steps if step.status == JobStatus.RUNNING),
+            "pending_steps": sum(1 for step in all_steps if step.status == JobStatus.PENDING),
+            "started_at": cls._to_iso(job.started_at),
+            "completed_at": cls._to_iso(job.completed_at),
+            "steps": step_data,
+        }
+        return progress
+
+    @classmethod
+    def get_job_logs(cls, db: Session, job_id: int, limit: int = 100) -> Optional[Dict[str, Any]]:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return None
+        steps = db.query(JobStep).filter(JobStep.job_id == job_id).order_by(JobStep.step_number).all()
+        if limit and limit > 0:
+            selected = steps[-limit:]
+        else:
+            selected = steps
+        logs = [
+            {
+                "step_number": step.step_number,
+                "name": step.name,
+                "status": step.status,
+                "started_at": cls._to_iso(step.started_at),
+                "completed_at": cls._to_iso(step.completed_at),
+                "error_message": step.error_message,
+                "result_data": step.result_data,
+            }
+            for step in selected
+        ]
+        return {
+            "job_id": job.id,
+            "total_steps": len(steps),
+            "returned_steps": len(logs),
+            "logs": logs,
+        }
+
     @classmethod
     def get_job_status(cls, db: Session, job_id: int) -> Optional[Dict[str, Any]]:
         """

@@ -214,27 +214,10 @@
     </div>
 </div>
 
-<script>
-  // Wait for API to be available, then load jobs.js
-  function initializeJobsPage() {
-    if (typeof window.API !== 'undefined' && typeof window.API.jobs !== 'undefined') {
-      console.log('✅ API loaded');
-      const script = document.createElement('script');
-      script.src = '/static/js/pages/jobs.js';
-      script.onload = function() {
-        console.log('✅ jobs.js loaded');
-      };
-      script.onerror = function() {
-        console.error('❌ Failed to load jobs.js');
-      };
-      document.head.appendChild(script);
-    } else {
-      setTimeout(initializeJobsPage, 100);
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    initializeJobsPage();
-  });
-</script>
 {% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="/static/js/pages/jobs.js"></script>
+{% endblock %}
+

@@ -188,6 +188,87 @@ async def cancel_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{job_id}/retry")
+async def retry_job(
+    job_id: int,
+    db: Session = Depends(get_db)
+):
+    """Reintenta la ejecucion de un job fallido, cancelado o completado."""
+    try:
+        job_data = JobService.retry_job(db=db, job_id=job_id)
+        if job_data is None:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} no encontrado")
+        return {
+            "success": True,
+            "message": f"Job {job_id} reintentado",
+            "job": job_data
+        }
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"Error reintentando job {job_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.delete("/{job_id}")
+async def delete_job(
+    job_id: int,
+    db: Session = Depends(get_db)
+):
+    """Elimina un job si no esta en ejecucion."""
+    try:
+        deleted = JobService.delete_job(db=db, job_id=job_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} no encontrado")
+        return {
+            "success": True,
+            "message": f"Job {job_id} eliminado"
+        }
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"Error eliminando job {job_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/{job_id}/progress")
+async def get_job_progress(
+    job_id: int,
+    step_limit: Optional[int] = Query(None, ge=1, le=1000, description="Cantidad maxima de pasos a retornar"),
+    db: Session = Depends(get_db)
+):
+    """Obtiene un resumen de progreso de un job."""
+    progress = JobService.get_job_progress(db=db, job_id=job_id, step_limit=step_limit)
+    if not progress:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} no encontrado")
+    return {
+        "success": True,
+        "job": progress
+    }
+
+
+@router.get("/{job_id}/logs")
+async def get_job_logs(
+    job_id: int,
+    limit: int = Query(100, ge=1, le=1000, description="Cantidad de pasos a devolver"),
+    db: Session = Depends(get_db)
+):
+    """Retorna los logs asociados a un job (pasos ejecutados)."""
+    logs = JobService.get_job_logs(db=db, job_id=job_id, limit=limit)
+    if not logs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} no encontrado")
+    return {
+        "success": True,
+        **logs
+    }
+
+
 @router.get("/{job_id}/steps")
 async def get_job_steps(
     job_id: int,
