@@ -69,11 +69,16 @@ async def get_recent_comments(
         content_type=content_type
     )
 
+    comments_payload = CommentService.enrich_comments_with_entity_data(
+        db=db,
+        comments=comments
+    )
+
     return {
         "total_comments": len(comments),
         "limit": limit,
         "content_type_filter": content_type,
-        "comments": [comment.to_dict() for comment in comments]
+        "comments": comments_payload
     }
 
 

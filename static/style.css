@@ -75,10 +75,23 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
 }
 
 .card-header h4 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.card-header-home {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-header-home h4 {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 600;

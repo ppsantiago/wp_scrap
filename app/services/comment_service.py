@@ -1,10 +1,11 @@
 # app/services/comment_service.py
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc
 from app.models.domain import Comment, Domain, Report
 from typing import Optional, List
 from datetime import datetime
 import logging
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +257,74 @@ class CommentService:
             .limit(limit)
             .all()
         )
+
+    @staticmethod
+    def enrich_comments_with_entity_data(
+        db: Session,
+        comments: List[Comment]
+    ) -> List[dict]:
+        """Convierte comentarios a dict y agrega información de la entidad asociada."""
+        if not comments:
+            return []
+
+        domain_ids = {comment.object_id for comment in comments if comment.content_type == "domain"}
+        report_ids = {comment.object_id for comment in comments if comment.content_type == "report"}
+
+        domain_map = {}
+        if domain_ids:
+            domain_rows = db.query(Domain).filter(Domain.id.in_(domain_ids)).all()
+            domain_map = {domain.id: domain for domain in domain_rows}
+
+        report_map = {}
+        if report_ids:
+            report_rows = (
+                db.query(Report)
+                .options(joinedload(Report.domain))
+                .filter(Report.id.in_(report_ids))
+                .all()
+            )
+            report_map = {report.id: report for report in report_rows}
+
+        enriched_comments: List[dict] = []
+        for comment in comments:
+            comment_dict = comment.to_dict()
+            entity_info = None
+
+            if comment.content_type == "domain":
+                domain = domain_map.get(comment.object_id)
+                if domain:
+                    domain_slug = quote(domain.domain, safe="")
+                    entity_info = {
+                        "type": "domain",
+                        "id": domain.id,
+                        "name": domain.domain,
+                        "label": f"Dominio: {domain.domain}",
+                        "url": f"/domain/{domain_slug}"
+                    }
+            elif comment.content_type == "report":
+                report = report_map.get(comment.object_id)
+                if report:
+                    entity_info = {
+                        "type": "report",
+                        "id": report.id,
+                        "label": f"Reporte #{report.id}",
+                        "url": f"/report/{report.id}"
+                    }
+
+                    if report.domain:
+                        domain_slug = quote(report.domain.domain, safe="")
+                        entity_info["domain"] = {
+                            "id": report.domain.id,
+                            "name": report.domain.domain,
+                            "url": f"/domain/{domain_slug}"
+                        }
+
+            if entity_info:
+                comment_dict["entity"] = entity_info
+
+            enriched_comments.append(comment_dict)
+
+        return enriched_comments
 
     @staticmethod
     def search_comments(

@@ -121,29 +121,76 @@ async function loadRecentComments() {
       return;
     }
 
-    const html = comments.map(comment => `
-      <div class="comment" data-comment-id="${comment.id}">
-        <div class="comment-header">
-          <div class="comment-author">
-            <strong>${escapeHtml(comment.author)}</strong>
-            <span class="comment-time">${getTimeAgo(comment.created_at)}</span>
+    const html = comments.map(comment => {
+      const entityUrl = getCommentEntityUrl(comment);
+      const entityLabel = getCommentEntityLabel(comment);
+      return `
+        <div class="comment" data-comment-id="${comment.id}">
+          <div class="comment-header">
+            <div class="comment-author">
+              <strong>${escapeHtml(comment.author)}</strong>
+              <span class="comment-time">${getTimeAgo(comment.created_at)}</span>
+            </div>
+          </div>
+          <div class="comment-content">${escapeHtml(comment.content)}</div>
+          <div class="comment-actions">
+            <span class="comment-indicator">
+              ${comment.content_type === 'domain' ? '🌐' : '📄'} 
+              ${entityLabel}
+            </span>
+            ${entityUrl ? `<a class="btn-link" href="${entityUrl}">Ver detalle</a>` : ''}
           </div>
         </div>
-        <div class="comment-content">${escapeHtml(comment.content)}</div>
-        <div class="comment-actions">
-          <span class="comment-indicator">
-            ${comment.content_type === 'domain' ? '🌐' : '📄'} 
-            ${comment.content_type}
-          </span>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     commentsContainer.innerHTML = html;
   } catch (error) {
     console.error('Error loading recent comments:', error);
     commentsContainer.innerHTML = '<div class="error-message">Error al cargar comentarios</div>';
   }
+}
+
+function getCommentEntityUrl(comment) {
+  if (!comment) {
+    return null;
+  }
+
+  if (comment.entity && comment.entity.url) {
+    return comment.entity.url;
+  }
+
+  if (!comment.content_type) {
+    return null;
+  }
+
+  if (comment.content_type === 'domain') {
+    if (!comment.domain || !comment.domain.domain) {
+      return null;
+    }
+    return `/domain/${encodeURIComponent(comment.domain.domain)}`;
+  }
+
+  if (comment.content_type === 'report') {
+    if (!comment.report || !comment.report.id) {
+      return null;
+    }
+    return `/report/${comment.report.id}`;
+  }
+
+  return null;
+}
+
+function getCommentEntityLabel(comment) {
+  if (!comment) {
+    return '';
+  }
+
+  if (comment.entity && comment.entity.label) {
+    return comment.entity.label;
+  }
+
+  return comment.content_type || '';
 }
 
 /**
