@@ -3,6 +3,8 @@ Script de prueba para el sistema de comentarios.
 Ejecutar desde la raíz del proyecto: python test_comments.py
 """
 
+# TODO: migrar este script a pruebas pytest dentro de `tests/integration/test_comments.py`.
+
 import sys
 from pathlib import Path
 

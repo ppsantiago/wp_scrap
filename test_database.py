@@ -3,6 +3,8 @@ Script de prueba para verificar la funcionalidad de la base de datos.
 Ejecutar desde la raíz del proyecto: python test_database.py
 """
 
+# TODO: migrar este script a pytest dentro de `tests/integration/test_storage_service.py`.
+
 import sys
 from pathlib import Path
 

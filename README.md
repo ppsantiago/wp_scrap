@@ -73,28 +73,26 @@ El compose monta `./data` para persistir la base de datos y expone la aplicacion
 - Los pasos registran bytes, errores o IDs de reporte generados.
 - El listado de jobs refresca datos cada pocos segundos y permite cancelar ejecuciones en curso.
 
-Funciones adicionales como reintentos manuales, borrado, progreso resumido y logs estan disponibles via `/api/jobs/{id}/retry`, `DELETE /api/jobs/{id}`, `/api/jobs/{id}/progress` y `/api/jobs/{id}/logs`, alineadas con los helpers en `static/js/utils/api.js`.
-
 ## Datos y reportes
 - Los reportes guardan un resumen cacheado (palabras, enlaces, solicitudes) y el JSON completo comprimido cuando es grande.
 - `DATABASE.md` documenta comandos utiles para inspeccionar `wp_scrap.db` y mantener los historicos.
 
 ## Pruebas rapidas
 ```bash
-# Validar integracion con la base de datos
-python test_database.py
+# Ejecutar suite completa localmente
+pytest
 
-# Revisar generacion de comentarios
-python test_comments.py
-```
+# Solo pruebas unitarias
+pytest -m unit
+# Solo integracion
+pytest -m integration
 
-## Documentacion complementaria
-- `DATABASE.md`: montaje de volumenes, mantenimiento y ejemplos de queries.
-- `FRONTEND.md`: detalle de paginas, componentes y ux.
-- `JOBS.md`: flujo completo de jobs y casos de uso.
+# En Docker (reutilizando servicio `wp-scrap`)
+docker compose run --rm wp-scrap pytest -m "not e2e"
+
+# TODO: documentar flujo Playwright completo para pruebas `pytest -m e2e`.
 
 ## Limitaciones conocidas
 - Algunas clases CSS contienen caracteres fuera de ASCII debido a codificacion previa; revisa `static/style.css` si necesitas normalizarlos.
 - El helper JS expone metodos de jobs para `retry`, `delete`, `progress` y `logs`, pero la API aun no los ofrece, por lo que acciones masivas pueden fallar hasta completar esos endpoints.
 - Para scraping estable via Playwright se recomienda ejecutar en entornos con dependencias de Chromium instaladas (ver documentacion de Playwright si se usa Linux headless).
-
