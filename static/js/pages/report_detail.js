@@ -28,6 +28,8 @@ async function loadReportData() {
     const reportHtml = renderReportData(response);
     container.innerHTML = reportHtml;
 
+    setupReportAccordion(container);
+
     // Initialize comments if container exists
     if (commentsContainer) {
       window.App.initComments('report-comments-container', 'report', reportId);
@@ -276,4 +278,79 @@ function renderReportData(response) {
   }
 
   return html;
+}
+
+function setupReportAccordion(container) {
+  const cards = Array.from(container.querySelectorAll('.card'));
+  const toggleCards = cards.filter((card) =>
+    card.querySelector('.card-header') && card.querySelector('.card-body')
+  );
+
+  if (!toggleCards.length) {
+    return;
+  }
+
+  let expandedCard = null;
+
+  const collapseCard = (card) => {
+    const body = card.querySelector('.card-body');
+    const header = card.querySelector('.card-header');
+    if (!body || !header) return;
+    body.style.display = 'none';
+    card.classList.add('collapsed');
+    card.setAttribute('data-expanded', 'false');
+    header.setAttribute('aria-expanded', 'false');
+  };
+
+  const expandCard = (card) => {
+    const body = card.querySelector('.card-body');
+    const header = card.querySelector('.card-header');
+    if (!body || !header) return;
+    body.style.display = '';
+    card.classList.remove('collapsed');
+    card.setAttribute('data-expanded', 'true');
+    header.setAttribute('aria-expanded', 'true');
+  };
+
+  toggleCards.forEach((card, index) => {
+    const header = card.querySelector('.card-header');
+    const body = card.querySelector('.card-body');
+    if (!header || !body) {
+      return;
+    }
+
+    header.classList.add('card-toggle-header');
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+
+    if (index === 0) {
+      expandCard(card);
+      expandedCard = card;
+    } else {
+      collapseCard(card);
+    }
+
+    const handleToggle = () => {
+      if (expandedCard === card) {
+        collapseCard(card);
+        expandedCard = null;
+        return;
+      }
+
+      if (expandedCard) {
+        collapseCard(expandedCard);
+      }
+
+      expandCard(card);
+      expandedCard = card;
+    };
+
+    header.addEventListener('click', handleToggle);
+    header.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleToggle();
+      }
+    });
+  });
 }
