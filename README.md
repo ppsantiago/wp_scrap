@@ -6,6 +6,7 @@ WP Scrap es una herramienta FastAPI para auditar dominios WordPress y sitios gen
 ## Principales funcionalidades
 - **Scraping integral**: inspeccion de metadatos, cabeceras, links, imagenes, rendimiento y cabeceras de seguridad con Playwright (`app/services/scrap_domain.py`).
 - **Persistencia estructurada**: dominios y reportes se normalizan con SQLAlchemy y se guardan en SQLite (`app/models/domain.py`, `app/services/storage_service.py`).
+- **Reportes enriquecidos**: recopilacion de contactos (emails, telefonos, WhatsApp), `team_contacts` con schema `Person`, formularios detallados, CTAs destacados e insights de negocio (`site.business`, `forms_detailed`, `cta_highlights`).
 - **UI administrativa**: paneles Jinja + JS para dashboard, listado de dominios, detalle de reportes y formulario de scraping (`templates/pages/*`, `static/js/pages/*`).
 - **Sistema de comentarios**: hilos para dominios, reportes y jobs disponibles via `/api/comments/*` y componentes reutilizables en el frontend (`static/js/components/comments.js`).
 - **Jobs en lote**: ejecucion asincrona de scraping masivo con seguimiento de pasos, reintentos y panel dedicado (`app/services/job_service.py`, `templates/pages/jobs.html`).
@@ -52,7 +53,7 @@ El compose monta `./data` para persistir la base de datos y expone la aplicacion
 1. Abre `http://localhost:8000` para ver el dashboard con estadisticas agregadas y ultimos comentarios.
 2. Usa `/scrap` para analizar un dominio puntual; el resultado se muestra en modal y se guarda si `save_to_db=true`.
 3. Consulta `/domains` para filtrar dominios, ver historial y abrir comentarios especificos.
-4. Revisa `/report/{id}` para inspeccionar un reporte con todos los bloques SEO, tecnico, seguridad y muestra de paginas.
+4. Revisa `/report/{id}` para inspeccionar un reporte con bloques SEO, tecnicos, de seguridad y ahora tambien contactos enriquecidos, formularios detectados, CTAs y resumen de negocio.
 5. Gestiona scraping masivo desde `/jobs`: crea un lote, sigue el progreso paso a paso y anota hallazgos en la pestana de comentarios.
 
 ## Endpoints clave
@@ -74,8 +75,19 @@ El compose monta `./data` para persistir la base de datos y expone la aplicacion
 - El listado de jobs refresca datos cada pocos segundos y permite cancelar ejecuciones en curso.
 
 ## Datos y reportes
-- Los reportes guardan un resumen cacheado (palabras, enlaces, solicitudes) y el JSON completo comprimido cuando es grande.
+- Los reportes guardan un resumen cacheado (palabras, enlaces, solicitudes) y el JSON completo comprimido cuando es grande. Las nuevas claves incluyen:
+  - `site.contacts` con emails, telefonos, WhatsApp y buckets de confianza (`personal` / `generic`).
+  - `site.team_contacts` con nombre, cargo, email, telefono y perfiles sociales.
+  - `site.forms_detailed` con metadata de formularios (metodo, accion, campos, integracion, CAPTCHA) y `site.forms_found` como conteo.
+  - `site.cta_highlights` con texto, URL y pagina de origen para CTAs visibles.
+  - `site.business` con value proposition, pricing, servicios y testimonios detectados.
+  - `pages[]` anotadas con `page_type`, `seed_type`, contactos encontrados y formularios por pagina.
 - `DATABASE.md` documenta comandos utiles para inspeccionar `wp_scrap.db` y mantener los historicos.
+
+## Notas sobre la UI
+- `static/js/pages/report_detail.js` renderiza las secciones enriquecidas y tablas de CTAs, formularios y contactos de equipo.
+- `static/style.css` incluye estilos para subsecciones (`.info-subsection`) y estados muted utilizados en el reporte detallado.
+- Recuerda hacer hard-reload tras desplegar cambios estaticos para evitar cache del navegador.
 
 ## Pruebas rapidas
 ```bash
