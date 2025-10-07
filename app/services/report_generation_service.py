@@ -329,84 +329,116 @@ class ReportGenerationService:
         context = cls._build_context(report)
         prompt_text = cls._render_prompt(prompt.prompt_template, context)
 
-        start = time.perf_counter()
         metadata: Dict[str, Any] = {
             "report_type": normalized_type,
             "report_id": report_id,
         }
 
-        try:
-            response = await cls._call_provider(prompt_text)
-            result = cls._parse_response(response)
-            duration_ms = int((time.perf_counter() - start) * 1000)
+        max_attempts = max(settings.report_generation_max_retries, 0) + 1
+        attempt = 0
 
-            log_entry = ReportGenerationLog(
-                report_id=report_id,
-                prompt_id=prompt.id,
-                type=normalized_type,
-                status="success",
-                duration_ms=duration_ms,
-                tokens_used=result.get("tokens"),
-                cached=False,
-                markdown_output=result.get("markdown"),
-                metadata=json.dumps(metadata | {"provider_response_id": response.get("id")}, ensure_ascii=False),
-            )
-            db.add(log_entry)
-            generated_output = cls._save_generated_report(
-                db=db,
-                report=report,
-                report_type=normalized_type,
-                markdown=result.get("markdown"),
-                metadata=result.get("raw"),
-            )
-            db.commit()
+        while attempt < max_attempts:
+            attempt += 1
+            attempt_metadata = metadata | {"attempt": attempt, "max_attempts": max_attempts}
+            start = time.perf_counter()
 
-            return {
-                "report_id": report_id,
-                "type": normalized_type,
-                "cached": False,
-                "markdown": generated_output.get("markdown"),
-                "generated_at": generated_output.get("updated_at") or generated_output.get("created_at"),
-                "tokens_used": log_entry.tokens_used,
-                "duration_ms": log_entry.duration_ms,
-                "tags": generated_output.get("tags"),
-                "metadata": generated_output.get("metadata"),
-            }
+            try:
+                response = await cls._call_provider(prompt_text)
+                result = cls._parse_response(response)
+                duration_ms = int((time.perf_counter() - start) * 1000)
 
-        except (httpx.HTTPError, asyncio.TimeoutError) as exc:
-            db.add(
-                ReportGenerationLog(
+                log_entry = ReportGenerationLog(
                     report_id=report_id,
                     prompt_id=prompt.id,
                     type=normalized_type,
-                    status="error",
-                    duration_ms=int((time.perf_counter() - start) * 1000),
+                    status="success",
+                    duration_ms=duration_ms,
+                    tokens_used=result.get("tokens"),
                     cached=False,
-                    error_message=str(exc),
-                    metadata=json.dumps(metadata, ensure_ascii=False),
+                    markdown_output=result.get("markdown"),
+                    metadata=json.dumps(
+                        attempt_metadata | {"provider_response_id": response.get("id")},
+                        ensure_ascii=False,
+                    ),
                 )
-            )
-            db.commit()
-            logger.exception("HTTP error while generating report %s type %s", report_id, normalized_type)
-            raise ReportGenerationError(f"Error comunicándose con el proveedor IA: {exc}") from exc
-        except ReportGenerationError:
-            raise
-        except Exception as exc:  # pragma: no cover - unexpected errors
-            db.add(
-                ReportGenerationLog(
-                    report_id=report_id,
-                    prompt_id=prompt.id,
-                    type=normalized_type,
-                    status="error",
-                    duration_ms=int((time.perf_counter() - start) * 1000),
-                    cached=False,
-                    error_message=str(exc),
-                    metadata=json.dumps(metadata, ensure_ascii=False),
+                db.add(log_entry)
+                generated_output = cls._save_generated_report(
+                    db=db,
+                    report=report,
+                    report_type=normalized_type,
+                    markdown=result.get("markdown"),
+                    metadata=result.get("raw"),
                 )
-            )
-            db.commit()
-            logger.exception("Unexpected error while generating report %s type %s", report_id, normalized_type)
-            raise ReportGenerationError("Ocurrió un error inesperado generando el reporte IA") from exc
+                db.commit()
+
+                return {
+                    "report_id": report_id,
+                    "type": normalized_type,
+                    "cached": False,
+                    "markdown": generated_output.get("markdown"),
+                    "generated_at": generated_output.get("updated_at")
+                    or generated_output.get("created_at"),
+                    "tokens_used": log_entry.tokens_used,
+                    "duration_ms": log_entry.duration_ms,
+                    "tags": generated_output.get("tags"),
+                    "metadata": generated_output.get("metadata"),
+                }
+
+            except (httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.warning(
+                    "Attempt %s/%s failed for report=%s type=%s: %s",
+                    attempt,
+                    max_attempts,
+                    report_id,
+                    normalized_type,
+                    exc,
+                )
+                if attempt >= max_attempts:
+                    db.add(
+                        ReportGenerationLog(
+                            report_id=report_id,
+                            prompt_id=prompt.id,
+                            type=normalized_type,
+                            status="error",
+                            duration_ms=int((time.perf_counter() - start) * 1000),
+                            cached=False,
+                            error_message=str(exc),
+                            metadata=json.dumps(attempt_metadata, ensure_ascii=False),
+                        )
+                    )
+                    db.commit()
+                    logger.exception(
+                        "HTTP error while generating report %s type %s after %s attempts",
+                        report_id,
+                        normalized_type,
+                        max_attempts,
+                    )
+                    raise ReportGenerationError(
+                        f"Error comunicándose con el proveedor IA tras {max_attempts} intentos: {exc}"
+                    ) from exc
+                continue
+            except ReportGenerationError:
+                raise
+            except Exception as exc:  # pragma: no cover - unexpected errors
+                db.add(
+                    ReportGenerationLog(
+                        report_id=report_id,
+                        prompt_id=prompt.id,
+                        type=normalized_type,
+                        status="error",
+                        duration_ms=int((time.perf_counter() - start) * 1000),
+                        cached=False,
+                        error_message=str(exc),
+                        metadata=json.dumps(attempt_metadata, ensure_ascii=False),
+                    )
+                )
+                db.commit()
+                logger.exception(
+                    "Unexpected error while generating report %s type %s",
+                    report_id,
+                    normalized_type,
+                )
+                raise ReportGenerationError("Ocurrió un error inesperado generando el reporte IA") from exc
 
     @classmethod
     def _save_generated_report(

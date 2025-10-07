@@ -1,10 +1,10 @@
 # Plan de implementación de Reportes IA
 
 ## Backend
-- **[Servicios de generación]** `app/services/report_generation_service.py` ya maneja orquestación, almacenamiento de Markdown (`GeneratedReport`) y reutiliza historial. Pendiente incorporar reintentos configurables (`settings.report_generation_max_retries`).
+- **[Servicios de generación]** `app/services/report_generation_service.py` ahora incluye reintentos configurables (`settings.report_generation_max_retries`), orquestación, almacenamiento de Markdown (`GeneratedReport`) y reutiliza historial.
 - **[Endpoints de generación]** `POST /api/reports/{report_id}/generate` implementado. Se añadieron `GET /api/reports/{report_id}/generated`, `GET /api/reports/{report_id}/generated/{type}` y `PUT /api/reports/{report_id}/generated` para listar, obtener y guardar salidas persistidas.
 - **[Persistencia de prompts]** Modelo `ReportPrompt` y rutas de configuración siguen operativas; queda por migrar validadores a Pydantic v2 y preparar seeding definitivo.
-- **[Persistencia de reportes IA]** `GeneratedReport` creado (serializa `tags` y `metadata`, relación con `Report`). Próximo paso: generar migración y considerar uso de comentarios sobre reportes generados.
+- **[Persistencia de reportes IA]** `GeneratedReport` creado (serializa `tags` y `metadata`, relación con `Report`). Migración inicial lista en `app/migrations/0001_create_generated_reports.sql`; siguiente paso: aplicar script y evaluar comentarios sobre reportes generados.
 - **[Auditoría y cache]** `ReportGenerationLog` continúa registrando ejecuciones; evaluar métricas adicionales y limpieza periódica.
 
 ## Frontend
@@ -16,6 +16,7 @@
 ## Infraestructura y configuración
 - **[Variables de entorno]** Registrar en configuración (`config.py` o `.env`) el endpoint de LMStudio y, si aplica, clave API. Documentar pasos de instalación y arranque.
 - **[Dependencias]** Agregar cliente OpenAI (`openai` o `litellm`) o librería HTTP utilizada, y asegurar compatibilidad con entorno actual.
+- **[Migraciones]** Estrategia documentada en `documentation/MIGRATIONS.md`; pendiente automatizar ejecución en CI/CD y revisar integración futura con Alembic.
 
 ## Pruebas y QA
 - **[Unit tests]** Mockear LMStudio para probar `report_generation_service` en escenarios de éxito, timeout y error.
@@ -23,5 +24,6 @@
 - **[Manual/UX]** Testear desde la UI los tres tipos de reporte, guardar cambios de prompts y verificar que se persisten.
 
 ## Seguimiento
-- **[Tareas pendientes]** Generar migración para `GeneratedReport`. Integrar reintentos configurables y exponer nuevas rutas en frontend. Migrar validadores a Pydantic v2.
+- **[Tareas completadas]** Reintentos configurables implementados en `app/services/report_generation_service.py`. Migración inicial creada en `app/migrations/0001_create_generated_reports.sql`.
+- **[Tareas pendientes]** Exponer nuevas rutas en frontend, migrar validadores a Pydantic v2 y aplicar la migración en entornos existentes.
 - **[Monitoreo]** Mantener métricas de generación y revisar advertencias (SQLAlchemy overlaps, Pydantic deprecations) antes del despliegue.
