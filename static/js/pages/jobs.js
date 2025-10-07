@@ -471,7 +471,12 @@ class JobsManager {
 
     try {
       this.setLoading(true);
-      const response = await window.API.jobs.createBatchScraping(domains, name, description);
+      const response = await window.API.jobs.createBatchScraping({
+        domains,
+        name,
+        description,
+        createdBy: 'user'
+      });
 
       if (response.success) {
         this.hideCreateModal();

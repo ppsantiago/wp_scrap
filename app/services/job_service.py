@@ -246,6 +246,126 @@ class JobService:
             step.mark_failed(str(e))
             job.failed_steps = 1
             db.commit()
+
+    @classmethod
+    async def _execute_batch_scraping(cls, db: Session, job: Job):
+        """
+        Ejecuta un job de scraping en lote para múltiples dominios.
+
+        Args:
+            db: Sesión de base de datos
+            job: Job a ejecutar
+        """
+        domains = job.config.get("domains") or []
+        if not domains:
+            job.mark_failed("La configuración del job no contiene dominios a procesar")
+            db.commit()
+            return
+
+        # Recuperar pasos existentes (uno por dominio) o crearlos si faltan
+        existing_steps = (
+            db.query(JobStep)
+            .filter(JobStep.job_id == job.id)
+            .order_by(JobStep.step_number)
+            .all()
+        )
+        steps_by_number = {step.step_number: step for step in existing_steps}
+
+        max_retries = int(job.config.get("max_retries", 0) or 0)
+        delay_seconds = float(job.config.get("delay_seconds", 1) or 0)
+        save_to_db = bool(job.config.get("save_to_db", True))
+
+        for index, domain in enumerate(domains, start=1):
+            step = steps_by_number.get(index)
+            if not step:
+                step = JobStep(
+                    job_id=job.id,
+                    step_number=index,
+                    name=f"Scraping: {domain}",
+                    description=f"Analizar dominio {domain}",
+                    status=JobStatus.PENDING,
+                )
+                db.add(step)
+                steps_by_number[index] = step
+                job.total_steps = max(job.total_steps or 0, index)
+                db.commit()
+
+            if step.status not in {JobStatus.PENDING, JobStatus.RUNNING}:
+                # Si el paso ya está completado/fallido (posible reintento), reiniciarlo
+                step.status = JobStatus.PENDING
+                step.started_at = None
+                step.completed_at = None
+                step.error_message = None
+                step.result_data = None
+                db.commit()
+
+            step.mark_started()
+            db.commit()
+
+            attempt = 0
+            success = False
+            last_error: Optional[str] = None
+            result_payload: Optional[Dict[str, Any]] = None
+
+            while attempt <= max_retries and not success:
+                try:
+                    result = await scrap_domain(domain)
+                except Exception as exc:
+                    last_error = str(exc)
+                    result = None
+
+                if result and result.get("success"):
+                    result_payload = {
+                        "status_code": result.get("status_code"),
+                        "domain": domain,
+                        "attempt": attempt + 1,
+                    }
+
+                    if save_to_db:
+                        try:
+                            report = StorageService.save_report(
+                                db=db,
+                                domain_name=domain,
+                                report_data=result,
+                            )
+                            result_payload["report_id"] = report.id
+                        except Exception as exc:
+                            # Si falla al guardar, registrar y continuar como fallo de step
+                            last_error = f"Error guardando reporte: {exc}"
+                            result_payload = None
+                        else:
+                            success = True
+                    else:
+                        success = True
+
+                    if success:
+                        step.mark_completed(result_payload)
+                        job.completed_steps = (job.completed_steps or 0) + 1
+                        break
+
+                if success:
+                    break
+
+                # Registrar error y decidir si reintentar
+                if result and not result.get("success"):
+                    last_error = result.get("error") or "Scraping sin éxito"
+                elif not last_error:
+                    last_error = "Error desconocido"
+
+                attempt += 1
+                if attempt <= max_retries:
+                    if delay_seconds > 0:
+                        await asyncio.sleep(delay_seconds)
+                else:
+                    step.mark_failed(last_error or "Error desconocido")
+                    job.failed_steps = (job.failed_steps or 0) + 1
+
+            job.update_progress()
+            db.commit()
+
+            if delay_seconds > 0 and success and index < len(domains):
+                await asyncio.sleep(delay_seconds)
+
     
     @classmethod
     def start_job(cls, job_id: int) -> bool:

@@ -647,11 +647,21 @@ textarea {
 /* --------------------------------------------------------------
    Utility classes
    -------------------------------------------------------------- */
-
-.mt-2 {
-  margin-top: 12px;
-}
-
-.hidden {
-  display: none !important;
+   
+   .mt-2 {
+     margin-top: 12px;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    
+/* --------------------------------------------------------------
+    reports
+    -------------------------------------------------------------- */
+.gerenate-report-container{
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }

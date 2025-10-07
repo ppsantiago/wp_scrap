@@ -217,8 +217,13 @@ class Report(Base):
         if not data:
             return "{}"
         if is_compressed:
-            decoded = base64.b64decode(data.encode('ascii'))
-            return zlib.decompress(decoded).decode('utf-8')
+            try:
+                decoded = base64.b64decode(data.encode('ascii'))
+                return zlib.decompress(decoded).decode('utf-8')
+            except (UnicodeEncodeError, ValueError, zlib.error):
+                # Si el flag indica compresión pero los datos no están codificados en base64,
+                # devolvemos el string original para evitar errores en reportes antiguos.
+                return data
         return data
 
     def set_json_data(self, field: str, data: dict):
