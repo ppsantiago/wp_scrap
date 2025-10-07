@@ -3,12 +3,28 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from app.services.storage_service import StorageService
 from app.services.comment_service import CommentService
+from app.services.trusted_contact_service import TrustedContactService
 from app.database import get_db
 from typing import List, Optional
 import logging
+from pydantic import BaseModel, validator
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = logging.getLogger(__name__)
+
+
+class TrustedContactPayload(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+    @validator("email", "phone", pre=True)
+    def _normalize(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
 
 
 @router.get("/domains", summary="Listar todos los dominios")
@@ -286,6 +302,62 @@ async def get_domain_with_comments(
         result["recent_reports"] = [r.to_dict(include_full_data=False) for r in reports]
 
     return result
+
+
+@router.get("/report/{report_id}/trusted-contact", summary="Opciones y selección de contacto de confianza")
+async def get_trusted_contact(
+    report_id: int = Path(..., description="ID del reporte"),
+    db: Session = Depends(get_db)
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    contact_options = TrustedContactService.get_contact_options(report)
+    active_contact = TrustedContactService.get_active_contact(db, report.domain_id)
+
+    return {
+        "report_id": report.id,
+        "domain_id": report.domain_id,
+        "options": contact_options,
+        "selected": TrustedContactService.serialize(active_contact),
+    }
+
+
+@router.put("/report/{report_id}/trusted-contact", summary="Actualizar contacto de confianza")
+async def set_trusted_contact(
+    report_id: int = Path(..., description="ID del reporte"),
+    payload: TrustedContactPayload = None,
+    db: Session = Depends(get_db)
+):
+    report = StorageService.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Reporte {report_id} no encontrado")
+
+    payload = payload or TrustedContactPayload()
+    options = TrustedContactService.get_contact_options(report)
+
+    if payload.email and payload.email not in options["emails"]:
+        raise HTTPException(status_code=400, detail="Email no disponible entre los contactos detectados")
+    if payload.phone and payload.phone not in options["phones"]:
+        raise HTTPException(status_code=400, detail="Teléfono no disponible entre los contactos detectados")
+
+    email = payload.email
+    phone = payload.phone
+
+    contact = TrustedContactService.set_trusted_contact(
+        db,
+        domain_id=report.domain_id,
+        report_id=report.id,
+        email=email,
+        phone=phone,
+    )
+
+    return {
+        "report_id": report.id,
+        "domain_id": report.domain_id,
+        "selected": TrustedContactService.serialize(contact),
+    }
 
 
 @router.get("/report/{report_id}/with-comments", summary="Reporte con comentarios")

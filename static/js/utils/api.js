@@ -93,6 +93,19 @@ window.API.reports = {
   compare: async (domainName, reportIds, metrics) => {
     const metricsStr = Array.isArray(metrics) ? metrics.join(',') : metrics;
     return fetchAPI(`/reports/compare/${encodeURIComponent(domainName)}?report_ids=${reportIds}&metrics=${metricsStr}`);
+  },
+
+  // Get trusted contact options and current selection
+  getTrustedContact: async (reportId) => {
+    return fetchAPI(`/reports/report/${reportId}/trusted-contact`);
+  },
+
+  // Update trusted contact selection
+  setTrustedContact: async (reportId, { email = null, phone = null } = {}) => {
+    return fetchAPI(`/reports/report/${reportId}/trusted-contact`, {
+      method: 'PUT',
+      body: JSON.stringify({ email, phone })
+    });
   }
 };
 

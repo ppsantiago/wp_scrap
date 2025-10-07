@@ -4,10 +4,14 @@
 window.App = window.App || {};
 
 let reportId = null;
+let trustedContactState = {
+  options: { emails: [], phones: [] },
+  selected: { email: null, phone: null },
+};
 
 window.App.initReportDetail = async function(id) {
   reportId = id;
-  await loadReportData();
+  await Promise.all([loadReportData(), loadTrustedContactSection()]);
 };
 
 /**
@@ -34,10 +38,127 @@ async function loadReportData() {
     if (commentsContainer) {
       window.App.initComments('report-comments-container', 'report', reportId);
     }
+
   } catch (error) {
     console.error('Error loading report:', error);
     container.innerHTML = '<div class="error-message">Error al cargar reporte. Por favor intenta de nuevo.</div>';
   }
+}
+
+async function loadTrustedContactSection() {
+  const container = document.getElementById('trusted-contact-container');
+  if (!container) return;
+
+  try {
+    container.innerHTML = '<div class="loading">Procesando contactos...</div>';
+    const data = await window.API.reports.getTrustedContact(reportId);
+
+    trustedContactState.options = data.options || { emails: [], phones: [] };
+    trustedContactState.selected = data.selected || { email: null, phone: null };
+
+    container.innerHTML = renderTrustedContactForm(trustedContactState);
+    bindTrustedContactEvents(container);
+  } catch (error) {
+    console.error('Error loading trusted contact info:', error);
+    container.innerHTML = '<div class="error-message">No se pudieron cargar los contactos detectados.</div>';
+  }
+}
+
+function renderTrustedContactForm(state) {
+  const { options, selected } = state;
+
+  const emailOptions = ['<option value="">Sin selección</option>']
+    .concat((options.emails || []).map((email) => `
+      <option value="${email}" ${selected?.email === email ? 'selected' : ''}>${email}</option>
+    `)).join('');
+
+  const phoneOptions = ['<option value="">Sin selección</option>']
+    .concat((options.phones || []).map((phone) => `
+      <option value="${phone}" ${selected?.phone === phone ? 'selected' : ''}>${phone}</option>
+    `)).join('');
+
+  const selectedSummary = selected && (selected.email || selected.phone)
+    ? `<p class="trusted-contact-summary">Seleccionado: ${selected.email || '-'} | ${selected.phone || '-'}</p>`
+    : '<p class="trusted-contact-summary">Seleccionado: Ninguno</p>';
+
+  return `
+    <form id="trusted-contact-form" class="trusted-contact-form">
+      <div class="form-group">
+        <label for="trusted-contact-email">Email</label>
+        <select id="trusted-contact-email" name="email" class="form-control" ${options.emails?.length ? '' : 'disabled'}>
+          ${emailOptions}
+        </select>
+        ${options.emails?.length ? '' : '<p class="help-text">No se detectaron emails.</p>'}
+      </div>
+      <div class="form-group">
+        <label for="trusted-contact-phone">Teléfono</label>
+        <select id="trusted-contact-phone" name="phone" class="form-control" ${options.phones?.length ? '' : 'disabled'}>
+          ${phoneOptions}
+        </select>
+        ${options.phones?.length ? '' : '<p class="help-text">No se detectaron teléfonos.</p>'}
+      </div>
+      <div class="form-actions" style="margin-top: 16px;">
+        <button type="button" class="btn btn-primary" id="trusted-contact-save">Guardar selección</button>
+        <button type="button" class="btn btn-secondary" id="trusted-contact-clear">Limpiar</button>
+      </div>
+    </form>
+    ${selectedSummary}
+  `;
+}
+
+function bindTrustedContactEvents(container) {
+  const form = container.querySelector('#trusted-contact-form');
+  if (!form) return;
+
+  const emailSelect = form.querySelector('#trusted-contact-email');
+  const phoneSelect = form.querySelector('#trusted-contact-phone');
+  const saveButton = form.querySelector('#trusted-contact-save');
+  const clearButton = form.querySelector('#trusted-contact-clear');
+
+  const setLoading = (isLoading) => {
+    if (isLoading) {
+      container.classList.add('is-loading');
+      saveButton.disabled = true;
+      clearButton.disabled = true;
+    } else {
+      container.classList.remove('is-loading');
+      saveButton.disabled = false;
+      clearButton.disabled = false;
+    }
+  };
+
+  saveButton.addEventListener('click', async () => {
+    try {
+      setLoading(true);
+      const payload = {
+        email: emailSelect && emailSelect.value ? emailSelect.value : null,
+        phone: phoneSelect && phoneSelect.value ? phoneSelect.value : null,
+      };
+
+      const response = await window.API.reports.setTrustedContact(reportId, payload);
+      trustedContactState.selected = response.selected || { email: null, phone: null };
+      await loadTrustedContactSection();
+    } catch (error) {
+      console.error('Error updating trusted contact:', error);
+      container.innerHTML = '<div class="error-message">No se pudo guardar la selección. Intenta nuevamente.</div>';
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  clearButton.addEventListener('click', async () => {
+    try {
+      setLoading(true);
+      const response = await window.API.reports.setTrustedContact(reportId, { email: null, phone: null });
+      trustedContactState.selected = response.selected || { email: null, phone: null };
+      await loadTrustedContactSection();
+    } catch (error) {
+      console.error('Error clearing trusted contact:', error);
+      container.innerHTML = '<div class="error-message">No se pudo limpiar la selección. Intenta nuevamente.</div>';
+    } finally {
+      setLoading(false);
+    }
+  });
 }
 
 /**

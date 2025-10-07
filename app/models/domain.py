@@ -119,6 +119,39 @@ class Domain(Base):
         }
 
 
+class TrustedContact(Base):
+    """Modelo que almacena el contacto de confianza seleccionado para un dominio."""
+    __tablename__ = "trusted_contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    domain_id = Column(Integer, ForeignKey("domains.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="SET NULL"), nullable=True, index=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    domain = relationship("Domain", backref="trusted_contacts")
+    report = relationship("Report")
+
+    __table_args__ = (
+        Index("idx_trusted_contact_domain_active", "domain_id", "is_active"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "report_id": self.report_id,
+            "email": self.email,
+            "phone": self.phone,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Report(Base):
     """
     Modelo que representa un reporte de scraping de un dominio.
@@ -247,6 +280,7 @@ class Report(Base):
             })
 
         return base
+
 
     def to_frontend_format(self):
         """

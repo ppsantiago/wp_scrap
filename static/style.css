@@ -209,6 +209,13 @@ textarea {
   margin-block: 16px;
 }
 
+.trusted-contact-form{
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
 /* --------------------------------------------------------------
    Status & badges
    -------------------------------------------------------------- */

@@ -21,7 +21,7 @@ from app.routes.jobs import router as jobs_router
 
 # Importa configuración de base de datos
 from app.database import init_db
-from app.models import Domain, Report, Comment, Job, JobStep  # Importar modelos para que SQLAlchemy los registre
+from app.models import Domain, Report, Comment, TrustedContact, Job, JobStep  # Importar modelos para que SQLAlchemy los registre
 
 
 @asynccontextmanager

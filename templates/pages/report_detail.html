@@ -15,7 +15,7 @@
 <p>Análisis completo del dominio en este momento específico</p>
 
 <!-- Report Data -->
-<div id="report-data-container">
+<div id="report-data-container" data-report-id="{{ report_id }}">
   <div class="loading">Cargando reporte...</div>
 </div>
 
@@ -27,6 +27,15 @@
     </div>
   </div>
 
+<!-- Trusted Contact Selection -->
+<div class="card">
+  <div class="card-header">
+    <h2 style="margin: 0;">Contacto de confianza</h2>
+  </div>
+  <div class="card-body" id="trusted-contact-container">
+    <div class="loading">Cargando contactos detectados...</div>
+  </div>
+</div>
 
 <!-- Comments Section -->
 <div class="card">
@@ -42,8 +51,12 @@
 <script>
   // Initialize report detail page
   $(function() {
-    if (window.App && typeof window.App.initReportDetail === 'function') {
-      window.App.initReportDetail({{ report_id }});
+    const reportContainer = document.getElementById('report-data-container');
+    const reportIdAttr = reportContainer ? reportContainer.dataset.reportId : null;
+    const parsedReportId = reportIdAttr ? Number(reportIdAttr) : null;
+
+    if (parsedReportId && window.App && typeof window.App.initReportDetail === 'function') {
+      window.App.initReportDetail(parsedReportId);
     }
   });
 </script>
