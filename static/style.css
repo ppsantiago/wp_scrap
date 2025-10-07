@@ -357,6 +357,28 @@ textarea {
   border-top: none;
 }
 
+.info-subsection {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.info-subsection h6 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .info-section h5 {
   margin: 0 0 12px 0;
   font-size: 1.05rem;

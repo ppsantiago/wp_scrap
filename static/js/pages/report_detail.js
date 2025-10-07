@@ -169,24 +169,41 @@ function renderReportData(response) {
   const tech = response.tech || {};
   const security = response.security || {};
   const site = response.site || {};
-  const pages = response.pages || [];
+  const pages = Array.isArray(response.pages) ? response.pages : [];
+  const business = site.business || {};
+  const formsDetailed = Array.isArray(site.forms_detailed) ? site.forms_detailed : [];
+  const ctaHighlights = Array.isArray(site.cta_highlights) ? site.cta_highlights : [];
+  const teamContacts = Array.isArray(site.contacts?.team_contacts) ? site.contacts.team_contacts : [];
+  const contactConfidence = site.contacts?.contact_confidence || {};
 
   const esc = (v) =>
     v === null || v === undefined || v === ""
       ? "-"
       : String(v).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
 
+  const list = (arr) =>
+    Array.isArray(arr) && arr.length
+      ? `<ul>${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`
+      : "-";
+
+  const listObj = (obj) =>
+    obj && Object.keys(obj).length
+      ? `<ul>${Object.entries(obj).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`).join("")}</ul>`
+      : "-";
+
   const links = seo.links || {};
   const images = seo.images || {};
   const imgByMime = images.byMime || {};
   const imgByExt = images.byExt || {};
+  const h1Count = seo.h1Count ?? seo.h1?.count;
+  const h1Sample = seo.h1?.text ? `<p><em>${esc(seo.h1.text)}</em></p>` : "";
 
   const mimeList = Object.keys(imgByMime).length
-    ? `<ul>${Object.entries(imgByMime).map(([k,v]) => `<li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>` 
+    ? `<ul>${Object.entries(imgByMime).map(([k, v]) => `<li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`
     : "-";
 
   const extList = Object.keys(imgByExt).length
-    ? `<ul>${Object.entries(imgByExt).map(([k,v]) => `<li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>` 
+    ? `<ul>${Object.entries(imgByExt).map(([k, v]) => `<li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`
     : "-";
 
   let html = `
@@ -201,11 +218,12 @@ function renderReportData(response) {
         <div class="info-grid">
           <div class="info-item"><span class="info-label">Título:</span> <span class="info-value">${esc(seo.title)}</span></div>
           <div class="info-item"><span class="info-label">Meta descripción:</span> <span class="info-value">${esc(seo.metaDescription)}</span></div>
-          <div class="info-item"><span class="info-label">Cantidad de H1:</span> <span class="info-value">${esc(seo.h1Count)}</span></div>
+          <div class="info-item"><span class="info-label">Cantidad de H1:</span> <span class="info-value">${esc(h1Count)}</span></div>
           <div class="info-item"><span class="info-label">Canonical:</span> <span class="info-value">${esc(seo.canonical)}</span></div>
           <div class="info-item"><span class="info-label">Robots:</span> <span class="info-value">${esc(seo.robots)}</span></div>
           <div class="info-item"><span class="info-label">Conteo de palabras:</span> <span class="info-value">${esc(seo.wordCount)}</span></div>
         </div>
+        ${h1Sample}
         <div class="info-section">
           <h5>Enlaces</h5>
           <div class="info-grid">
@@ -233,18 +251,20 @@ function renderReportData(response) {
   const req = tech.requests || {};
   const byType = req.by_type || {};
   const timing = tech.timing || {};
-  const secH = (security.headers || {});
+  const secH = security.headers || {};
 
-  const byTypeRows = Object.entries(byType).map(([k,v]) =>
-    `<tr><td>${esc(k)}</td><td>${esc(v.count)}</td><td>${esc(v.bytes)}</td></tr>` 
+  const byTypeRows = Object.entries(byType).map(([k, v]) =>
+    `<tr><td>${esc(k)}</td><td>${esc(v.count)}</td><td>${esc(v.bytes)}</td></tr>`
   ).join("");
 
-  const reqImgMime = (req.images_by_mime || {});
-  const reqImgExt  = (req.images_by_ext  || {});
+  const reqImgMime = req.images_by_mime || {};
+  const reqImgExt = req.images_by_ext || {};
   const reqMimeList = Object.keys(reqImgMime).length
-    ? `<ul>${Object.entries(reqImgMime).map(([k,v]) => `<li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`  : "-";
+    ? `<ul>${Object.entries(reqImgMime).map(([k, v]) => `<li>${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`
+    : "-";
   const reqExtList = Object.keys(reqImgExt).length
-    ? `<ul>${Object.entries(reqImgExt).map(([k,v]) => `<li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`  : "-";
+    ? `<ul>${Object.entries(reqImgExt).map(([k, v]) => `<li>.${esc(k)}: ${esc(v)}</li>`).join("")}</ul>`
+    : "-";
 
   html += `
     <div class="card">
@@ -281,7 +301,7 @@ function renderReportData(response) {
             </table>
           </div>
         </div>
-        ` : ''}
+        ` : ""}
 
         <div class="info-section">
           <h5>Formatos de imágenes (red)</h5>
@@ -306,16 +326,42 @@ function renderReportData(response) {
       </div>
     </div>`;
 
-  // Site data if available
   if (site && Object.keys(site).length > 0) {
-    const list = (arr) =>
-      Array.isArray(arr) && arr.length
-        ? `<ul>${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` 
-        : "-";
     const socials = site.socials || {};
     const socialsHtml = Object.keys(socials).length
-      ? `<ul>${Object.entries(socials).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${v.map(esc).join(", ")}</li>`).join("")}</ul>` 
+      ? `<ul>${Object.entries(socials).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${v.map(esc).join(", ")}</li>`).join("")}</ul>`
       : "-";
+
+    const personal = list(contactConfidence.personal);
+    const generic = list(contactConfidence.generic);
+    const confidenceHtml = personal === "-" && generic === "-"
+      ? "-"
+      : `
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">Personales:</span> <div class="info-value">${personal}</div></div>
+          <div class="info-item"><span class="info-label">Genéricos:</span> <div class="info-value">${generic}</div></div>
+        </div>`;
+
+    const teamContactsHtml = teamContacts.length
+      ? `<div style="overflow-x: auto;">
+          <table class="table table-sm">
+            <thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Confianza</th><th>Teléfono</th><th>Perfiles</th><th>Fuente</th></tr></thead>
+            <tbody>${teamContacts.slice(0, 25).map((tc) => `
+              <tr>
+                <td>${esc(tc.name)}</td>
+                <td>${esc(tc.job_title)}</td>
+                <td>${esc(tc.email)}</td>
+                <td>${esc(tc.email_confidence)}</td>
+                <td>${esc(tc.phone)}</td>
+                <td>${Array.isArray(tc.social_profiles) && tc.social_profiles.length ? tc.social_profiles.map((sp) => `<a href="${esc(sp)}" target="_blank" rel="noopener">${esc(sp)}</a>`).join('<br>') : '-'}</td>
+                <td>${esc(tc.source)}</td>
+              </tr>
+            `).join("")}</tbody>
+          </table>
+        </div>`
+      : '<p class="muted">No se detectaron perfiles de equipo con schema Person.</p>';
+
+    const formsIntegrationsList = list(site.integrations?.forms);
 
     html += `
       <div class="card">
@@ -324,13 +370,21 @@ function renderReportData(response) {
         </div>
         <div class="card-body">
           <div class="info-item"><span class="info-label">Páginas rastreadas:</span> <span class="info-value">${esc(site.pages_crawled)}</span></div>
-          
+
           <div class="info-section">
             <h5>Contactos</h5>
             <div class="info-grid">
               <div class="info-item"><span class="info-label">Emails:</span> <div class="info-value">${list(site.contacts?.emails)}</div></div>
               <div class="info-item"><span class="info-label">Teléfonos:</span> <div class="info-value">${list(site.contacts?.phones)}</div></div>
               <div class="info-item"><span class="info-label">WhatsApp:</span> <div class="info-value">${list(site.contacts?.whatsapp)}</div></div>
+            </div>
+            <div class="info-subsection">
+              <h6>Confianza en Emails</h6>
+              ${confidenceHtml}
+            </div>
+            <div class="info-subsection">
+              <h6>Contactos del Equipo (schema Person)</h6>
+              ${teamContactsHtml}
             </div>
           </div>
 
@@ -345,17 +399,21 @@ function renderReportData(response) {
               <div class="info-item"><span class="info-label">Formularios detectados:</span> <span class="info-value">${esc(site.forms_found)}</span></div>
               <div class="info-item"><span class="info-label">Páginas legales:</span> <div class="info-value">${list(site.legal_pages)}</div></div>
             </div>
+            <div class="info-subsection">
+              <h6>Integraciones de Formularios</h6>
+              ${formsIntegrationsList}
+            </div>
           </div>
 
           ${site.integrations ? `
           <div class="info-section">
-            <h5>Integraciones</h5>
+            <h5>Integraciones de Analytics/Pixels</h5>
             <div class="info-grid">
               <div class="info-item"><span class="info-label">Analytics:</span> <div class="info-value">${list(site.integrations.analytics)}</div></div>
               <div class="info-item"><span class="info-label">Pixels:</span> <div class="info-value">${list(site.integrations.pixels)}</div></div>
             </div>
           </div>
-          ` : ''}
+          ` : ""}
 
           ${site.wp ? `
           <div class="info-section">
@@ -366,22 +424,103 @@ function renderReportData(response) {
               <div class="info-item"><span class="info-label">Plugins:</span> <div class="info-value">${list(site.wp.plugins)}</div></div>
             </div>
           </div>
-          ` : ''}
+          ` : ""}
         </div>
       </div>`;
   }
 
-  // Pages table if available
-  if (Array.isArray(pages) && pages.length > 0) {
-    const rows = pages.slice(0, 20).map((p) => `
+  if (formsDetailed.length) {
+    const formRows = formsDetailed.slice(0, 40).map((form) => {
+      const inputs = Array.isArray(form.inputs)
+        ? form.inputs.map((inp) => `${esc(inp.type)} ${esc(inp.name || "(sin name)")}${inp.required ? " *" : ""}`).join('<br>')
+        : "-";
+      const buttons = Array.isArray(form.buttons) && form.buttons.length ? form.buttons.map(esc).join('<br>') : "-";
+      return `
+        <tr>
+          <td>${esc(form.page_type || "-")}</td>
+          <td>${esc(form.page)}</td>
+          <td>${esc(form.method)}</td>
+          <td>${esc(form.action)}</td>
+          <td>${inputs}</td>
+          <td>${buttons}</td>
+          <td>${esc(form.hasCaptcha)}</td>
+          <td>${esc(form.integration)}</td>
+        </tr>`;
+    }).join("");
+
+    html += `
+      <div class="card">
+        <div class="card-header">
+          <h4>📝 Formularios detectados</h4>
+        </div>
+        <div class="card-body">
+          <div style="overflow-x: auto;">
+            <table class="table table-sm">
+              <thead><tr><th>Tipo de página</th><th>URL</th><th>Método</th><th>Acción</th><th>Campos</th><th>Botones</th><th>CAPTCHA</th><th>Integración</th></tr></thead>
+              <tbody>${formRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  if (ctaHighlights.length) {
+    const ctaRows = ctaHighlights.slice(0, 40).map((cta) => `
       <tr>
+        <td>${esc(cta.page_type)}</td>
+        <td>${esc(cta.page)}</td>
+        <td>${esc(cta.text)}</td>
+        <td>${cta.href ? `<a href="${esc(cta.href)}" target="_blank" rel="noopener">${esc(cta.href)}</a>` : '-'}</td>
+      </tr>`).join("");
+
+    html += `
+      <div class="card">
+        <div class="card-header">
+          <h4>🎯 CTA destacados</h4>
+        </div>
+        <div class="card-body">
+          <div style="overflow-x: auto;">
+            <table class="table table-sm">
+              <thead><tr><th>Tipo de página</th><th>URL</th><th>Texto</th><th>Destino</th></tr></thead>
+              <tbody>${ctaRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  if (business && Object.keys(business).length) {
+    const businessSections = Object.entries(business).map(([key, values]) => `
+      <div class="info-subsection">
+        <h6>${esc(key)}</h6>
+        ${list(values)}
+      </div>
+    `).join("");
+
+    html += `
+      <div class="card">
+        <div class="card-header">
+          <h4>🏢 Información de negocio</h4>
+        </div>
+        <div class="card-body">
+          ${businessSections}
+        </div>
+      </div>`;
+  }
+
+  if (pages.length) {
+    const rows = pages.slice(0, 40).map((p) => `
+      <tr>
+        <td>${esc(p.page_type || '-')}</td>
+        <td>${esc(p.seed_type || '-')}</td>
         <td>${esc(p.url)}</td>
         <td>${esc(p.status)}</td>
-        <td>${esc((p.emails_found || []).join(", "))}</td>
-        <td>${esc((p.phones_found || []).join(", "))}</td>
+        <td>${esc((p.emails_found || []).join(', '))}</td>
+        <td>${esc((p.phones_found || []).join(', '))}</td>
         <td>${esc(p.forms_count)}</td>
+        <td>${p.team_contacts && p.team_contacts.length ? p.team_contacts.map((tc) => esc(tc.name || tc.email || '-')).join('<br>') : '-'}</td>
       </tr>`).join("");
-    
+
     html += `
       <div class="card">
         <div class="card-header">
@@ -390,7 +529,7 @@ function renderReportData(response) {
         <div class="card-body">
           <div style="overflow-x: auto;">
             <table class="table table-sm">
-              <thead><tr><th>URL</th><th>HTTP</th><th>Emails</th><th>Teléfonos</th><th>Forms</th></tr></thead>
+              <thead><tr><th>Tipo</th><th>Seed</th><th>URL</th><th>HTTP</th><th>Emails</th><th>Teléfonos</th><th>Forms</th><th>Team sample</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>

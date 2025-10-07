@@ -226,8 +226,8 @@ class Report(Base):
         json_str = json.dumps(data, ensure_ascii=False)
         compressed_str, is_compressed = self._compress_if_large(json_str)
         setattr(self, field, compressed_str)
-        if field == "seo_data":  # Solo marcamos compresión si algún campo es comprimido
-            self.is_compressed = is_compressed or self.is_compressed
+        if is_compressed:
+            self.is_compressed = True
 
     def get_json_data(self, field: str) -> dict:
         """Deserializa y opcionalmente descomprime datos JSON"""
@@ -238,7 +238,12 @@ class Report(Base):
         try:
             return json.loads(json_str)
         except json.JSONDecodeError:
-            return {}
+            try:
+                decoded = base64.b64decode(json_str.encode("ascii"))
+                inflated = zlib.decompress(decoded).decode("utf-8")
+                return json.loads(inflated)
+            except Exception:
+                return {}
 
     def to_dict(self, include_full_data: bool = False):
         """
