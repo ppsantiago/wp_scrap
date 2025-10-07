@@ -30,6 +30,22 @@ async def get_domains(
     }
 
 
+@router.delete("/domain/{domain_name}", summary="Eliminar un dominio")
+async def delete_domain(
+    domain_name: str = Path(..., description="Nombre del dominio"),
+    db: Session = Depends(get_db)
+):
+    """Elimina un dominio junto con sus reportes y comentarios asociados."""
+    result = StorageService.delete_domain(db, domain_name)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Dominio '{domain_name}' no encontrado")
+
+    return {
+        "message": f"Dominio '{domain_name}' eliminado correctamente",
+        **result
+    }
+
+
 @router.get("/domain/{domain_name}", summary="Obtener información de un dominio")
 async def get_domain_info(
     domain_name: str = Path(..., description="Nombre del dominio"),

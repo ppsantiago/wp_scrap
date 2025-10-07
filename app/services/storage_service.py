@@ -1,7 +1,7 @@
 # app/services/storage_service.py
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
-from app.models.domain import Domain, Report
+from app.models.domain import Domain, Report, Comment
 from typing import Optional, List
 from datetime import datetime, timedelta
 import logging
@@ -122,7 +122,6 @@ class StorageService:
     def get_all_domains(db: Session, limit: int = 100, offset: int = 0) -> List[Domain]:
         """
         Obtiene todos los dominios con paginación.
-        Ordenados por último scraping (más reciente primero).
         """
         return (
             db.query(Domain)
@@ -131,26 +130,26 @@ class StorageService:
             .offset(offset)
             .all()
         )
-    
+
     @staticmethod
     def get_report_by_id(db: Session, report_id: int) -> Optional[Report]:
         """Obtiene un reporte por su ID"""
         return db.query(Report).filter(Report.id == report_id).first()
-    
+
     @staticmethod
     def get_latest_report(db: Session, domain_name: str) -> Optional[Report]:
         """Obtiene el reporte más reciente de un dominio"""
         domain = StorageService.get_domain_by_name(db, domain_name)
         if not domain:
             return None
-        
+
         return (
             db.query(Report)
             .filter(Report.domain_id == domain.id)
             .order_by(desc(Report.scraped_at))
             .first()
         )
-    
+
     @staticmethod
     def get_domain_reports(
         db: Session,
@@ -162,7 +161,7 @@ class StorageService:
         """
         Obtiene todos los reportes de un dominio con paginación.
         Ordenados por fecha (más reciente primero).
-        
+
         Args:
             db: Sesión de base de datos
             domain_name: Nombre del dominio
@@ -173,12 +172,12 @@ class StorageService:
         domain = StorageService.get_domain_by_name(db, domain_name)
         if not domain:
             return []
-        
+
         query = db.query(Report).filter(Report.domain_id == domain.id)
-        
+
         if success_only:
             query = query.filter(Report.success == True)
-        
+
         return (
             query
             .order_by(desc(Report.scraped_at))
@@ -186,7 +185,7 @@ class StorageService:
             .offset(offset)
             .all()
         )
-    
+
     @staticmethod
     def get_recent_reports(
         db: Session,
@@ -195,14 +194,14 @@ class StorageService:
     ) -> List[Report]:
         """
         Obtiene reportes recientes de todos los dominios.
-        
+
         Args:
             db: Sesión de base de datos
             days: Número de días hacia atrás
             limit: Número máximo de reportes
         """
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
+
         return (
             db.query(Report)
             .filter(Report.scraped_at >= cutoff_date)
@@ -210,7 +209,7 @@ class StorageService:
             .limit(limit)
             .all()
         )
-    
+
     @staticmethod
     def delete_old_reports(
         db: Session,
@@ -219,19 +218,19 @@ class StorageService:
     ) -> int:
         """
         Elimina reportes antiguos de un dominio, manteniendo solo los N más recientes.
-        
+
         Args:
             db: Sesión de base de datos
             domain_name: Nombre del dominio
             keep_latest: Cantidad de reportes recientes a mantener
-            
+
         Returns:
             Número de reportes eliminados
         """
         domain = StorageService.get_domain_by_name(db, domain_name)
         if not domain:
             return 0
-        
+
         # Obtener IDs de los reportes a mantener
         keep_ids = [
             r.id for r in db.query(Report.id)
@@ -240,10 +239,10 @@ class StorageService:
             .limit(keep_latest)
             .all()
         ]
-        
+
         if not keep_ids:
             return 0
-        
+
         # Eliminar los reportes que no están en keep_ids
         deleted = (
             db.query(Report)
@@ -255,12 +254,12 @@ class StorageService:
             )
             .delete(synchronize_session=False)
         )
-        
+
         db.commit()
         logger.info(f"Eliminados {deleted} reportes antiguos de {domain_name}")
-        
+
         return deleted
-    
+
     @staticmethod
     def get_statistics(db: Session) -> dict:
         """
@@ -270,14 +269,14 @@ class StorageService:
         total_reports = db.query(Report).count()
         successful_reports = db.query(Report).filter(Report.success == True).count()
         failed_reports = db.query(Report).filter(Report.success == False).count()
-        
+
         # Dominio más rastreado
         most_scraped = (
             db.query(Domain)
             .order_by(desc(Domain.total_reports))
             .first()
         )
-        
+
         return {
             "total_domains": total_domains,
             "total_reports": total_reports,
@@ -287,3 +286,71 @@ class StorageService:
             "most_scraped_domain": most_scraped.domain if most_scraped else None,
             "most_scraped_count": most_scraped.total_reports if most_scraped else 0
         }
+
+    @staticmethod
+    def delete_domain(db: Session, domain_name: str) -> Optional[dict]:
+        """Elimina un dominio junto con sus reportes y comentarios asociados."""
+        domain = StorageService.get_domain_by_name(db, domain_name)
+        if not domain:
+            return None
+
+        try:
+            report_id_rows = (
+                db.query(Report.id)
+                .filter(Report.domain_id == domain.id)
+                .all()
+            )
+            report_ids = [report_id for (report_id,) in report_id_rows]
+
+            reports_deleted = 0
+            if report_ids:
+                reports_deleted = (
+                    db.query(Report)
+                    .filter(Report.id.in_(report_ids))
+                    .delete(synchronize_session=False)
+                )
+
+            domain_comments_deleted = (
+                db.query(Comment)
+                .filter(
+                    Comment.content_type == "domain",
+                    Comment.object_id == domain.id
+                )
+                .delete(synchronize_session=False)
+            )
+
+            report_comments_deleted = 0
+            if report_ids:
+                report_comments_deleted = (
+                    db.query(Comment)
+                    .filter(
+                        Comment.content_type == "report",
+                        Comment.object_id.in_(report_ids)
+                    )
+                    .delete(synchronize_session=False)
+                )
+
+            domain_name_value = domain.domain
+
+            db.delete(domain)
+            db.commit()
+
+            logger.info(
+                "Dominio eliminado: %s (reportes=%s, comentarios_dominio=%s, comentarios_reportes=%s)",
+                domain_name,
+                reports_deleted,
+                domain_comments_deleted,
+                report_comments_deleted
+            )
+
+            return {
+                "domain": domain_name_value,
+                "reports_deleted": reports_deleted,
+                "domain_comments_deleted": domain_comments_deleted,
+                "report_comments_deleted": report_comments_deleted
+            }
+
+        except Exception as exc:
+            db.rollback()
+            logger.error("Error eliminando dominio %s: %s", domain_name, exc)
+            raise

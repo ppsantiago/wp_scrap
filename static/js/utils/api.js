@@ -60,6 +60,13 @@ window.API.domains = {
   // Get domains with recent comments
   getWithRecentComments: async (limit = 20) => {
     return fetchAPI(`/reports/domains/with-recent-comments?limit=${limit}`);
+  },
+
+  // Delete domain by name
+  delete: async (domainName) => {
+    return fetchAPI(`/reports/domain/${encodeURIComponent(domainName)}`, {
+      method: 'DELETE'
+    });
   }
 };
 

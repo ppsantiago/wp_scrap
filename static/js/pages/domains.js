@@ -23,9 +23,19 @@ async function loadDomains(offset = 0) {
   try {
     container.innerHTML = '<div class="loading">Cargando dominios...</div>';
 
+    currentPage = Math.max(0, Math.floor(offset / PAGE_SIZE));
+
     const response = await window.API.domains.list(PAGE_SIZE, offset);
     const domains = response.domains || [];
     totalDomains = response.total || 0;
+
+    if (domains.length === 0 && offset > 0) {
+      const newOffset = Math.max(0, offset - PAGE_SIZE);
+      if (newOffset !== offset) {
+        await loadDomains(newOffset);
+        return;
+      }
+    }
 
     if (domains.length === 0 && offset === 0) {
       container.innerHTML = `
@@ -34,10 +44,11 @@ async function loadDomains(offset = 0) {
           <a href="/scrap" class="btn-primary" style="margin-top: 16px;">Analizar Primer Dominio</a>
         </div>
       `;
+      updatePaginationInfo();
       return;
     }
 
-    const rows = domains.map((domain, index) => `
+    const rowsHtml = domains.map((domain, index) => `
       <tr class="domain-row" onclick="window.location.href='/domain/${encodeURIComponent(domain.domain)}'">
         <td>${offset + index + 1}</td>
         <td><a href="/domain/${encodeURIComponent(domain.domain)}" class="domain-link">${escapeHtml(domain.domain)}</a></td>
@@ -45,6 +56,9 @@ async function loadDomains(offset = 0) {
         <td>${domain.total_reports || 0}</td>
         <td>${formatDate(domain.first_scraped_at)}</td>
         <td>${formatDate(domain.last_scraped_at)}</td>
+        <td class="actions-cell">
+          <button class="btn-secondary btn-danger btn-delete-domain" data-domain="${encodeURIComponent(domain.domain)}">Eliminar</button>
+        </td>
       </tr>
     `).join('');
 
@@ -58,97 +72,23 @@ async function loadDomains(offset = 0) {
             <th>Reportes</th>
             <th>Primer Análisis</th>
             <th>Último Análisis</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          ${rows}
+          ${rowsHtml}
         </tbody>
       </table>
     `;
 
     container.innerHTML = html;
     updatePaginationInfo();
+    attachDeleteHandlers();
   } catch (error) {
     console.error('Error loading domains:', error);
     container.innerHTML = '<div class="error-message">Error al cargar dominios. Por favor intenta de nuevo.</div>';
   }
 }
-
-/**
- * Setup filters
- */
-function setupFilters() {
-  const searchInput = document.getElementById('domain-search');
-  if (searchInput) {
-    let timeout;
-    searchInput.addEventListener('input', (e) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        filterDomains(e.target.value);
-      }, 300);
-    });
-  }
-}
-
-/**
- * Filter domains by search term
- */
-async function filterDomains(searchTerm) {
-  if (!searchTerm || searchTerm.trim() === '') {
-    await loadDomains(0);
-    return;
-  }
-
-  const container = document.getElementById('domains-list-container');
-  try {
-    container.innerHTML = '<div class="loading">Buscando...</div>';
-
-    const response = await window.API.domains.list(100, 0);
-    const domains = (response.domains || []).filter(d => 
-      d.domain.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    if (domains.length === 0) {
-      container.innerHTML = '<div class="no-comments">No se encontraron dominios que coincidan con la búsqueda.</div>';
-      return;
-    }
-
-    const rows = domains.map((domain, index) => `
-      <tr class="domain-row" onclick="window.location.href='/domain/${encodeURIComponent(domain.domain)}'">
-        <td>${index + 1}</td>
-        <td><a href="/domain/${encodeURIComponent(domain.domain)}" class="domain-link">${escapeHtml(domain.domain)}</a></td>
-        <td><span class="status-badge status-${domain.status}">${domain.status}</span></td>
-        <td>${domain.total_reports || 0}</td>
-        <td>${formatDate(domain.first_scraped_at)}</td>
-        <td>${formatDate(domain.last_scraped_at)}</td>
-      </tr>
-    `).join('');
-
-    const html = `
-      <table class="table domain-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Dominio</th>
-            <th>Estado</th>
-            <th>Reportes</th>
-            <th>Primer Análisis</th>
-            <th>Último Análisis</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-    `;
-
-    container.innerHTML = html;
-  } catch (error) {
-    console.error('Error filtering domains:', error);
-    container.innerHTML = '<div class="error-message">Error al buscar dominios</div>';
-  }
-}
-
 /**
  * Setup pagination
  */
@@ -191,6 +131,38 @@ function updatePaginationInfo() {
     const end = Math.min((currentPage + 1) * PAGE_SIZE, totalDomains);
     paginationInfo.textContent = `Mostrando ${start}-${end} de ${totalDomains}`;
   }
+}
+
+function attachDeleteHandlers() {
+  const buttons = document.querySelectorAll('.btn-delete-domain');
+  buttons.forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const domainName = decodeURIComponent(button.dataset.domain || '');
+      if (!domainName) return;
+
+      const confirmed = window.confirm(`¿Eliminar el dominio "${domainName}" y todos sus reportes asociados?`);
+      if (!confirmed) {
+        return;
+      }
+
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Eliminando...';
+
+      try {
+        await window.API.domains.delete(domainName);
+        await loadDomains(currentPage * PAGE_SIZE);
+      } catch (error) {
+        console.error('Error deleting domain:', error);
+        alert('No se pudo eliminar el dominio. Intenta nuevamente.');
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
+  });
 }
 
 /**
