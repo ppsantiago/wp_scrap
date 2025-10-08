@@ -31,8 +31,16 @@ class Comment(Base):
     is_pinned = Column(Boolean, default=False)  # Comentarios destacados
 
     # Relaciones
-    parent = relationship("Comment", remote_side=[id])  # Comentario padre
-    replies = relationship("Comment", remote_side=[parent_id])  # Respuestas
+    parent = relationship(
+        "Comment",
+        remote_side=[id],
+        back_populates="replies",
+    )  # Comentario padre
+    replies = relationship(
+        "Comment",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )  # Respuestas
 
     # Índices compuestos para consultas eficientes
     __table_args__ = (

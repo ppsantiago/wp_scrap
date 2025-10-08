@@ -1,6 +1,6 @@
 # app/services/comment_service.py
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_, desc
+from sqlalchemy import and_, or_, desc, select
 from app.models.domain import Comment, Domain, Report
 from typing import Optional, List
 from datetime import datetime
@@ -384,16 +384,12 @@ class CommentService:
         pinned_comments = query.filter(Comment.is_pinned == True).count()
 
         # Comentarios con respuestas
+        replies_parent_ids = select(Comment.parent_id).where(Comment.parent_id.isnot(None))
+
         comments_with_replies = (
             db.query(Comment.id)
             .filter(Comment.parent_id.is_(None))
-            .filter(
-                Comment.id.in_(
-                    db.query(Comment.parent_id)
-                    .filter(Comment.parent_id.isnot(None))
-                    .subquery()
-                )
-            )
+            .filter(Comment.id.in_(replies_parent_ids))
             .count()
         )
 

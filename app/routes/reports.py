@@ -7,7 +7,7 @@ from app.services.trusted_contact_service import TrustedContactService
 from app.database import get_db
 from typing import Any, Dict, List, Optional
 import logging
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.report_generation_service import (
     ReportGenerationError,
@@ -22,7 +22,8 @@ class TrustedContactPayload(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
 
-    @validator("email", "phone", pre=True)
+    @field_validator("email", "phone", mode="before")
+    @classmethod
     def _normalize(cls, value):
         if value is None:
             return None
@@ -36,7 +37,8 @@ class ReportGenerationRequest(BaseModel):
     type: str = Field(..., description="Tipo de reporte IA a generar")
     force_refresh: bool = Field(False, description="Ignorar cache y forzar nueva generación")
 
-    @validator("type")
+    @field_validator("type", mode="before")
+    @classmethod
     def _validate_type(cls, value: str) -> str:
         normalized = (value or "").strip().lower()
         if normalized not in ReportGenerationService.SUPPORTED_TYPES:
@@ -51,7 +53,8 @@ class PromptUpdateItem(BaseModel):
     prompt_template: str = Field(..., description="Plantilla en formato Markdown para el prompt")
     updated_by: Optional[str] = Field(None, description="Usuario que actualiza el prompt")
 
-    @validator("type")
+    @field_validator("type", mode="before")
+    @classmethod
     def _validate_prompt_type(cls, value: str) -> str:
         normalized = (value or "").strip().lower()
         if normalized not in ReportGenerationService.SUPPORTED_TYPES:
@@ -60,7 +63,8 @@ class PromptUpdateItem(BaseModel):
             )
         return normalized
 
-    @validator("prompt_template")
+    @field_validator("prompt_template")
+    @classmethod
     def _validate_template(cls, value: str) -> str:
         if not value or not value.strip():
             raise ValueError("El prompt_template no puede estar vacío")
@@ -77,7 +81,8 @@ class GeneratedReportUpsertRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Etiquetas asociadas al reporte")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadatos adicionales del proveedor IA")
 
-    @validator("type")
+    @field_validator("type", mode="before")
+    @classmethod
     def _normalize_type(cls, value: str) -> str:
         normalized = (value or "").strip().lower()
         if normalized not in ReportGenerationService.SUPPORTED_TYPES:
@@ -86,7 +91,8 @@ class GeneratedReportUpsertRequest(BaseModel):
             )
         return normalized
 
-    @validator("markdown")
+    @field_validator("markdown")
+    @classmethod
     def _validate_markdown(cls, value: str) -> str:
         if not value or not value.strip():
             raise ValueError("El markdown no puede estar vacío")
@@ -208,7 +214,7 @@ async def get_latest_report(
 @router.get("/report/{report_id}", summary="Obtener un reporte específico")
 async def get_report(
     report_id: int = Path(..., description="ID del reporte"),
-    format: str = Query("full", regex="^(full|frontend|metrics)$", description="Formato de salida"),
+    format: str = Query("full", pattern="^(full|frontend|metrics)$", description="Formato de salida"),
     db: Session = Depends(get_db)
 ):
     """
@@ -595,7 +601,7 @@ async def set_trusted_contact(
 @router.get("/report/{report_id}/with-comments", summary="Reporte con comentarios")
 async def get_report_with_comments(
     report_id: int = Path(..., description="ID del reporte"),
-    format: str = Query("frontend", regex="^(full|frontend|metrics)$", description="Formato de salida"),
+    format: str = Query("frontend", pattern="^(full|frontend|metrics)$", description="Formato de salida"),
     db: Session = Depends(get_db)
 ):
     """

@@ -10,8 +10,8 @@
 ## Frontend
 - **[Integración en report_detail]** Extender `static/js/pages/report_detail.js` para escuchar clics en los botones IA, enviar la petición al endpoint de generación, mostrar loading y renderizar el Markdown en `#report-ia-container` (usar librería como `marked.js` o `markdown-it`).
 - **[Manejo de estado]** Añadir feedback visual (spinners, manejo de errores, reintentos) y permitir descargar/copiar el Markdown generado.
-- **[Configuraciones]** Crear nueva pantalla o modal (p.ej. `templates/pages/settings.html` + `static/js/pages/settings.js`) accesible desde la UI, con formulario para editar los prompts por tipo, validación básica y vista previa opcional.
-- **[Previsualización Markdown]** Implementar componente de vista previa instantánea para el Markdown generado y los prompts editados (usar `marked.js`/`markdown-it`), mostrando loading/errores y permitiendo comentar versiones guardadas.
+- **[Configuraciones]** ✅ Pantalla de settings creada y mejorada (`templates/pages/settings.html`, `static/js/pages/settings.js`, `static/style.css`) con tabs funcionales y formulario de prompts por tipo.
+- **[Previsualización Markdown]** ✅ Vista previa instantánea implementada en settings usando `marked.js`, con estados de carga y estilos renovados.
 
 ## Infraestructura y configuración
 - **[Variables de entorno]** Registrar en configuración (`config.py` o `.env`) el endpoint de LMStudio y, si aplica, clave API. Documentar pasos de instalación y arranque.
@@ -24,6 +24,13 @@
 - **[Manual/UX]** Testear desde la UI los tres tipos de reporte, guardar cambios de prompts y verificar que se persisten.
 
 ## Seguimiento
-- **[Tareas completadas]** Reintentos configurables implementados en `app/services/report_generation_service.py`. Migración inicial creada en `app/migrations/0001_create_generated_reports.sql`.
-- **[Tareas pendientes]** Exponer nuevas rutas en frontend, migrar validadores a Pydantic v2 y aplicar la migración en entornos existentes.
-- **[Monitoreo]** Mantener métricas de generación y revisar advertencias (SQLAlchemy overlaps, Pydantic deprecations) antes del despliegue.
+- **[Tareas completadas]**
+  - Reintentos configurables implementados en `app/services/report_generation_service.py`.
+  - Migración inicial creada en `app/migrations/0001_create_generated_reports.sql`.
+  - Pantalla de configuración IA con tabs y preview mejorada (`templates/pages/settings.html`, `static/js/pages/settings.js`, `static/style.css`).
+  - Ajustes de compatibilidad Pydantic/SQLAlchemy en `app/routes/reports.py`, `app/routes/jobs.py`, `app/config/settings.py`, `app/models/domain.py` y `app/services/comment_service.py`; suite `pytest` sin warnings.
+- **[Tareas pendientes]**
+  - Exponer nuevas rutas en frontend (report_detail).
+  - Mockear LMStudio y añadir cobertura de tests para generación IA.
+  - Aplicar la migración en entornos existentes.
+- **[Monitoreo]** Mantener métricas de generación, revisar advertencias nuevas y documentar futuras migraciones.

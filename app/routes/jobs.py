@@ -24,7 +24,7 @@ class CreateBatchScrapingJobRequest(BaseModel):
     domains: Optional[List[str]] = Field(
         None,
         description="Lista de dominios a scrapear",
-        min_items=1,
+        min_length=1,
     )
     domains_json: Optional[Any] = Field(
         None,

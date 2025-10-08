@@ -3,14 +3,25 @@ from __future__ import annotations
 
 from functools import lru_cache
 try:
-    from pydantic_settings import BaseSettings
+    from pydantic_settings import BaseSettings, SettingsConfigDict
     from pydantic import Field
 except ImportError:  # pragma: no cover - fallback for entornos sin pydantic-settings
     from pydantic import BaseSettings, Field  # type: ignore
+    try:  # pragma: no cover - fallback para ConfigDict
+        from pydantic import ConfigDict as SettingsConfigDict  # type: ignore
+    except ImportError:  # pragma: no cover - últimos entornos legacy
+        SettingsConfigDict = dict  # type: ignore
 
 
 class Settings(BaseSettings):
     """Runtime configuration values loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        populate_by_name=True,
+    )
 
     lmstudio_base_url: str = Field(
         default="http://127.0.0.1:1234/v1",
@@ -52,12 +63,6 @@ class Settings(BaseSettings):
         alias="REPORT_GENERATION_AUDIENCE",
         description="Nombre de la audiencia objetivo para personalizar prompts.",
     )
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        populate_by_name = True
 
 
 @lru_cache()
