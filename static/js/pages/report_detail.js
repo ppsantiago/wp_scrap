@@ -30,6 +30,7 @@ const IA_REPORT_TYPES = {
 let iaState = {
   isLoading: false,
   type: null,
+  lastType: null,
   controller: null,
   history: [],
   lastResult: null,
@@ -86,8 +87,10 @@ function initIaReportButtons() {
     button.addEventListener('click', () => handleIaGeneration(type, config, container, button));
   });
 
-  const forceRefreshToggle = createForceRefreshToggle();
-  container.insertAdjacentElement('beforebegin', forceRefreshToggle);
+  if (!document.querySelector('.ia-force-refresh')) {
+    const forceRefreshToggle = createForceRefreshToggle();
+    container.insertAdjacentElement('beforebegin', forceRefreshToggle);
+  }
 }
 
 function createForceRefreshToggle() {
@@ -137,6 +140,7 @@ async function handleIaGeneration(type, config, container, button) {
   resetIaState();
   iaState.isLoading = true;
   iaState.type = type;
+  iaState.lastType = type;
 
   const forceRefresh = getForceRefreshValue();
   const existingContent = container.innerHTML;
@@ -149,10 +153,15 @@ async function handleIaGeneration(type, config, container, button) {
       force_refresh: forceRefresh,
     });
 
-    renderIaMarkdown(container, result);
-    iaState.lastResult = result;
+    const normalizedResult = {
+      ...result,
+      type: result?.type || type,
+    };
+
+    renderIaMarkdown(container, normalizedResult);
+    iaState.lastResult = normalizedResult;
     window.App?.notifications?.success?.('Reporte IA generado correctamente.');
-    populateIaSaveForm(result);
+    populateIaSaveForm(normalizedResult);
     await loadIaHistory();
   } catch (error) {
     console.error('Error generating AI report:', error);
@@ -190,6 +199,7 @@ function renderIaMarkdown(container, result) {
   const markdown = result?.markdown || '';
   const generatedAt = result?.generated_at ? new Date(result.generated_at) : null;
   const cached = result?.cached ? '<span class="ia-report__badge ia-report__badge--cached">Cache</span>' : '';
+  const resultType = result?.type || iaState.lastType || 'technical';
 
   if (!markdown) {
     container.innerHTML = '<div class="ia-report ia-report--empty">No se recibió contenido generado.</div>';
@@ -226,9 +236,10 @@ function renderIaMarkdown(container, result) {
   `;
 
   bindIaContentActions(container, markdown);
-  highlightHistoryType(result?.type);
-  iaState.lastResult = result;
-  populateIaSaveForm(result);
+  iaState.lastType = resultType;
+  highlightHistoryType(resultType);
+  iaState.lastResult = { ...result, type: resultType };
+  populateIaSaveForm({ ...result, type: resultType });
 }
 
 function renderIaError(error, config, fallbackContent) {
@@ -340,7 +351,7 @@ function renderIaHistory(container, history) {
 function highlightHistoryType(type = null) {
   const container = document.getElementById('report-ia-history');
   if (!container) return;
-  const activeType = type || iaState.type;
+  const activeType = type || iaState.type || iaState.lastType;
   container.querySelectorAll('[data-ia-history-item]').forEach((item) => {
     const matches = activeType && item.dataset.iaHistoryItem === activeType;
     item.classList.toggle('is-active', Boolean(matches));
@@ -369,6 +380,7 @@ async function handleIaHistoryLoad(reportType, triggerButton) {
 
   iaState.isLoading = true;
   iaState.type = reportType;
+  iaState.lastType = reportType;
   container.innerHTML = renderIaLoading(config, false);
   if (triggerButton) triggerButton.disabled = true;
 
@@ -390,18 +402,22 @@ async function handleIaHistoryLoad(reportType, triggerButton) {
 
 document.addEventListener('click', (event) => {
   const retryBtn = event.target.closest('[data-ia-retry]');
-  if (retryBtn && iaState.type) {
+  if (retryBtn) {
+    const retryType = iaState.type || iaState.lastType;
+    if (!retryType) {
+      return;
+    }
     const container = document.getElementById('report-ia-container');
     const wrapper = document.querySelector('.gerenate-report-container');
     if (!container || !wrapper) return;
 
-    const config = IA_REPORT_TYPES[iaState.type];
+    const config = IA_REPORT_TYPES[retryType];
     if (!config) return;
 
     const button = wrapper.querySelector(config.buttonSelector);
     if (!button) return;
 
-    handleIaGeneration(iaState.type, config, container, button);
+    handleIaGeneration(retryType, config, container, button);
   }
 
   const showPrevBtn = event.target.closest('[data-ia-show-previous]');
