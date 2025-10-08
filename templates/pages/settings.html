@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Configuración IA | WP Scrap{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="breadcrumb-separator">/</span>
+  <span>Configuración</span>
+</div>
+
+<h1>⚙️ Configuración IA</h1>
+<p>Gestiona las plantillas de prompts utilizadas para las generaciones IA de reportes.</p>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Prompts IA</h2>
+  </div>
+  <div class="card-body">
+    <p class="form-help">Edita el markdown de cada prompt y guarda los cambios para que se apliquen en las próximas ejecuciones.</p>
+    <div class="prompts-actions">
+      <div id="prompts-status" class="prompts-status">Cargando prompts IA...</div>
+      <div class="prompts-actions__buttons">
+        <button type="button" class="btn btn-secondary" id="reset-prompts-btn">Restaurar</button>
+        <button type="button" class="btn btn-primary" id="save-prompts-btn">Guardar cambios</button>
+      </div>
+    </div>
+    <div class="prompts-tabs">
+      <div id="prompts-tablist" class="prompts-tablist" role="tablist" aria-label="Tipos de reporte IA"></div>
+      <div id="prompts-panels" class="prompts-panels">
+        <div class="loading">Cargando prompts IA...</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pages/settings.js"></script>
+<script>
+  $(function() {
+    if (window.App && typeof window.App.initSettings === 'function') {
+      window.App.initSettings();
+    }
+  });
+</script>
+{% endblock %}

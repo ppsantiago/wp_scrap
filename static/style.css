@@ -1009,6 +1009,8 @@ textarea {
   }
 }
 
-.card-header h2{
-  margin-bottom: 1.5rem !important;
+@media (min-width: 768px) {
+  .prompts-panel__content {
+    grid-template-columns: 1fr;
+  }
 }
