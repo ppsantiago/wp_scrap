@@ -19,7 +19,7 @@
 - **[Migraciones]** Estrategia documentada en `documentation/MIGRATIONS.md`; pendiente automatizar ejecución en CI/CD y revisar integración futura con Alembic.
 
 ## Pruebas y QA
-- **[Unit tests]** Mockear LMStudio para probar `report_generation_service` en escenarios de éxito, timeout y error.
+- **[Unit tests]** ✅ LMStudio mockeado y cobertura añadida para `ReportGenerationService` (generación exitosa, cache y fallos).
 - **[Integration tests]** Validar endpoints de generación y de prompts con la base de datos en memoria.
 - **[Manual/UX]** Testear desde la UI los tres tipos de reporte, guardar cambios de prompts y verificar que se persisten.
 
@@ -29,8 +29,8 @@
   - Migración inicial creada en `app/migrations/0001_create_generated_reports.sql`.
   - Pantalla de configuración IA con tabs y preview mejorada (`templates/pages/settings.html`, `static/js/pages/settings.js`, `static/style.css`).
   - Ajustes de compatibilidad Pydantic/SQLAlchemy en `app/routes/reports.py`, `app/routes/jobs.py`, `app/config/settings.py`, `app/models/domain.py` y `app/services/comment_service.py`; suite `pytest` sin warnings.
+  - Suite de pruebas unitarias para generación IA agregada (`tests/unit/test_report_generation_service.py`) con mock de LMStudio.
 - **[Tareas pendientes]**
   - Exponer nuevas rutas en frontend (report_detail).
-  - Mockear LMStudio y añadir cobertura de tests para generación IA.
   - Aplicar la migración en entornos existentes.
 - **[Monitoreo]** Mantener métricas de generación, revisar advertencias nuevas y documentar futuras migraciones.
